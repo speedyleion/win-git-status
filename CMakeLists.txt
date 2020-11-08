@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 project(win-git-status LANGUAGES C CXX)
+set(CMAKE_CXX_STANDARD 17)
 
 include(conan.cmake)
 conan_cmake_run(CONANFILE conanfile.py
