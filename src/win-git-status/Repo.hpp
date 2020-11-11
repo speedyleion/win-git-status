@@ -17,6 +17,12 @@ public:
 
 private:
     git_repository * m_repo;
+
+    std::string getUntrackedMessage(git_status_list *status);
+
+    std::string getBranchMessage(git_status_list *status);
+
+    std::string getTrackedMessage(git_status_list *status);
 };
 
 
