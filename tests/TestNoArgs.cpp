@@ -35,6 +35,26 @@ TEST_CASE_METHOD(TempRepo, "Test with an untracked file") {
                         "nothing added to commit but untracked files present (use \"git add\" to track)\n") == repo.status());
 }
 
+TEST_CASE_METHOD(TempRepo, "Test with new file added to index") {
+    auto repo = Repo(m_dir.string());
+
+    std::string filename = "untracked.txt";
+    auto untracked = m_dir / filename;
+    auto file = std::ofstream(untracked);
+    file << "This file is untracked\n";
+    file.close();
+
+    addFile(filename);
+
+    REQUIRE(std::string("On branch master\n"
+                        "Your branch is up to date with 'origin/master'.\n"
+                        "\n"
+                        "Changes to be committed:\n"
+                        "  (use \"git restore --staged <file>...\" to unstage)\n"
+                        "        new file:   untracked.txt\n"
+                        "\n") == repo.status());
+}
+
 TEST_CASE_METHOD(TempRepo, "Test with a modified file in working tree") {
     auto repo = Repo(m_dir.string());
 
@@ -52,6 +72,26 @@ TEST_CASE_METHOD(TempRepo, "Test with a modified file in working tree") {
                         "        modified:   file_1.txt\n"
                         "\n"
                         "no changes added to commit (use \"git add\" and/or \"git commit -a\")\n") == repo.status());
+}
+
+TEST_CASE_METHOD(TempRepo, "Test with a modified file added to index") {
+    auto repo = Repo(m_dir.string());
+
+    std::string filename = "file_1.txt";
+    auto file_to_modify = m_dir / filename;
+    auto file = std::ofstream(file_to_modify);
+    file << "This file is modified\n";
+    file.close();
+
+    addFile(filename);
+
+    REQUIRE(std::string("On branch master\n"
+                        "Your branch is up to date with 'origin/master'.\n"
+                        "\n"
+                        "Changes to be committed:\n"
+                        "  (use \"git restore --staged <file>...\" to unstage)\n"
+                        "        modified:   file_1.txt\n"
+                        "\n") == repo.status());
 }
 
 TEST_CASE_METHOD(TempRepo, "Test with a renamed file in working tree") {
@@ -74,4 +114,43 @@ TEST_CASE_METHOD(TempRepo, "Test with a renamed file in working tree") {
                         "        renamed.txt\n"
                         "\n"
                         "no changes added to commit (use \"git add\" and/or \"git commit -a\")\n") == repo.status());
+}
+
+TEST_CASE_METHOD(TempRepo, "Test with a renamed file in index") {
+    auto repo = Repo(m_dir.string());
+
+    std::string old_name = "file_3.txt";
+    std::string new_name = "renamed.txt";
+    auto old_file = m_dir / old_name;
+    auto new_file = m_dir / new_name;
+    std::filesystem::rename(old_file, new_file);
+
+    removeFile(old_name);
+    addFile(new_name);
+
+    REQUIRE(std::string("On branch master\n"
+                        "Your branch is up to date with 'origin/master'.\n"
+                        "\n"
+                        "Changes to be committed:\n"
+                        "  (use \"git restore --staged <file>...\" to unstage)\n"
+                        "        renamed:    file_3.txt -> renamed.txt\n"
+                        "\n") == repo.status());
+}
+
+TEST_CASE_METHOD(TempRepo, "Test with a deleted file in index") {
+    auto repo = Repo(m_dir.string());
+
+    removeFile("file_2.txt");
+
+    REQUIRE(std::string("On branch master\n"
+                        "Your branch is up to date with 'origin/master'.\n"
+                        "\n"
+                        "Changes to be committed:\n"
+                        "  (use \"git restore --staged <file>...\" to unstage)\n"
+                        "        deleted:    file_2.txt\n"
+                        "\n"
+                        "Untracked files:\n"
+                        "  (use \"git add <file>...\" to include in what will be committed)\n"
+                        "        file_2.txt\n"
+                        "\n") == repo.status());
 }

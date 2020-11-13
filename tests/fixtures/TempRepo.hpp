@@ -11,6 +11,8 @@ class TempRepo {
 public:
     TempRepo();
     ~TempRepo();
+    void addFile(const std::string &filename);
+    void removeFile(const std::string &filename);
 
 protected:
     std::filesystem::path m_dir;

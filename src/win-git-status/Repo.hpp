@@ -23,6 +23,8 @@ private:
     std::string getBranchMessage(git_status_list *status);
 
     std::string getTrackedMessage(git_status_list *status);
+
+    std::string getStagedMessage(git_status_list *status);
 };
 
 
