@@ -6,6 +6,7 @@
 
 
 #include <git2/types.h>
+#include <git2/status.h>
 #include <string>
 
 class Repo {
@@ -25,6 +26,11 @@ private:
     std::string getTrackedMessage(git_status_list *status);
 
     std::string getStagedMessage(git_status_list *status);
+
+    std::string getStatusMessage(git_status_list *status, const std::string &header, int group_status,
+                                 size_t diff_offset) const;
+
+    std::string getFileMessage(git_status_t status, const git_diff_delta *file_diff) const;
 };
 
 
