@@ -1,4 +1,4 @@
-add_library(win-git-status Repo.cpp Repo.hpp)
+add_library(win-git-status Repo.cpp Repo.hpp Status.cpp Status.hpp)
 
 target_link_libraries(win-git-status PRIVATE libgit2::libgit2)
 

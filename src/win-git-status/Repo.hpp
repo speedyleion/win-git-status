@@ -19,18 +19,6 @@ public:
 private:
     git_repository * m_repo;
 
-    std::string getUntrackedMessage(git_status_list *status);
-
-    std::string getBranchMessage(git_status_list *status);
-
-    std::string getTrackedMessage(git_status_list *status);
-
-    std::string getStagedMessage(git_status_list *status);
-
-    std::string getStatusMessage(git_status_list *status, const std::string &header, int group_status,
-                                 size_t diff_offset) const;
-
-    std::string getFileMessage(git_status_t status, const git_diff_delta *file_diff) const;
 };
 
 

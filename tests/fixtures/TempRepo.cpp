@@ -6,9 +6,15 @@
 #include <catch2/catch.hpp>
 #include <git2/index.h>
 #include <git2/clone.h>
+#include <git2/submodule.h>
 #include "TempDirectory.hpp"
 #include "TempRepo.hpp"
 #include "RepoBuilder.hpp"
+
+int submodule_update(git_submodule *sm, const char *name, void *payload){
+    git_submodule_update_options options = GIT_SUBMODULE_UPDATE_OPTIONS_INIT;
+    return git_submodule_update(sm, 1, &options);
+}
 
 TempRepo::TempRepo() {
     auto name = Catch::getResultCapture().getCurrentTestName();
@@ -17,6 +23,7 @@ TempRepo::TempRepo() {
     m_dir = TempDirectory::TempDir(name);
     auto origin = RepoBuilder::getOriginRepo();
     git_clone(&m_repo, origin.c_str(), m_dir.string().c_str(), NULL);
+    git_submodule_foreach(m_repo, submodule_update, NULL);
 }
 
 TempRepo::~TempRepo() {

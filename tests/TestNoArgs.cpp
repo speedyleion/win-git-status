@@ -154,3 +154,4 @@ TEST_CASE_METHOD(TempRepo, "Test with a deleted file in index") {
                         "        file_2.txt\n"
                         "\n") == repo.status());
 }
+
