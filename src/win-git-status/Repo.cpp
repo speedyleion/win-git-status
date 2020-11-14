@@ -12,8 +12,12 @@
 Repo::Repo(const std::string &path) {
     git_libgit2_init();
 
+    git_buf repo_path_buffer={0};
+    git_repository_discover(&repo_path_buffer, path.c_str(), 0, NULL);
     m_repo = NULL;
-    git_repository_open(&m_repo, path.c_str());
+    if(git_repository_open(&m_repo, repo_path_buffer.ptr) != 0 ){
+        throw RepoException("fatal: not a git repository (or any of the parent directories): .git");
+    }
 }
 
 Repo::~Repo(){
@@ -23,8 +27,12 @@ Repo::~Repo(){
 std::string Repo::status() {
     Status status = Status(m_repo);
     std::stringstream stream;
-    status.toStream(stream);
+    status.toStream(stream, Colorize::COLORIZE);
     return stream.str();
+}
+
+std::string Repo::toString() {
+    return git_repository_commondir(m_repo);
 }
 
 

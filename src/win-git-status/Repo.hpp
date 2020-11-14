@@ -9,12 +9,18 @@
 #include <git2/status.h>
 #include <string>
 
+class RepoException : public std::runtime_error{ ;
+public:
+    RepoException(const char * error) : std::runtime_error(error){}
+};
+
 class Repo {
 public:
     Repo::Repo(const std::string &path);
     Repo::~Repo();
 
     std::string status();
+    std::string toString();
 
 private:
     git_repository * m_repo;

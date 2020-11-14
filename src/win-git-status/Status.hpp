@@ -9,23 +9,26 @@
 #include <git2/types.h>
 #include <git2/status.h>
 
+enum class Colorize {COLORIZE, NO_COLORIZE};
+
 class Status {
 public:
     Status(git_repository * repo);
     ~Status();
-    void toStream(std::ostream &stream);
-    bool getUntrackedMessage(std::ostream &stream);
+    void toStream(std::ostream &stream, Colorize colorize=Colorize::NO_COLORIZE);
+    bool getUntrackedMessage(std::ostream &stream, Colorize colorize=Colorize::NO_COLORIZE);
 
-    bool getBranchMessage(std::ostream &stream);
+    bool getBranchMessage(std::ostream &stream, Colorize colorize=Colorize::NO_COLORIZE);
 
-    bool getTrackedMessage(std::ostream &stream);
+    bool getTrackedMessage(std::ostream &stream, Colorize colorize=Colorize::NO_COLORIZE);
 
-    bool getStagedMessage(std::ostream &stream);
+    bool getStagedMessage(std::ostream &stream, Colorize colorize=Colorize::NO_COLORIZE);
 
     bool
-    getStatusMessage(std::ostream &stream, const std::string &header, int group_status, size_t diff_offset);
+    getStatusMessage(std::ostream &stream, const std::string &header, int group_status, size_t diff_offset,
+                     const std::string &file_color);
 
-    std::string getFileMessage(git_status_t status, const git_diff_delta *file_diff);
+    std::string getFileMessage(git_status_t status, const git_diff_delta *file_diff, const std::string &file_color);
 
 private:
     git_status_list *m_status;

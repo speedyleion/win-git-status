@@ -30,7 +30,7 @@ TEST_CASE_METHOD(TempRepo, "Test with an untracked file") {
                         "\n"
                         "Untracked files:\n"
                         "  (use \"git add <file>...\" to include in what will be committed)\n"
-                        "        untracked.txt\n"
+                        "        \u001b[31muntracked.txt\u001b[0m\n"
                         "\n"
                         "nothing added to commit but untracked files present (use \"git add\" to track)\n") == repo.status());
 }
@@ -51,7 +51,7 @@ TEST_CASE_METHOD(TempRepo, "Test with new file added to index") {
                         "\n"
                         "Changes to be committed:\n"
                         "  (use \"git restore --staged <file>...\" to unstage)\n"
-                        "        new file:   untracked.txt\n"
+                        "        \u001b[32mnew file:   untracked.txt\u001b[0m\n"
                         "\n") == repo.status());
 }
 
@@ -69,7 +69,7 @@ TEST_CASE_METHOD(TempRepo, "Test with a modified file in working tree") {
                         "Changes not staged for commit:\n"
                         "  (use \"git add <file>...\" to update what will be committed)\n"
                         "  (use \"git restore <file>...\" to discard changes in working directory)\n"
-                        "        modified:   file_1.txt\n"
+                        "        \u001b[31mmodified:   file_1.txt\u001b[0m\n"
                         "\n"
                         "no changes added to commit (use \"git add\" and/or \"git commit -a\")\n") == repo.status());
 }
@@ -90,7 +90,7 @@ TEST_CASE_METHOD(TempRepo, "Test with a modified file added to index") {
                         "\n"
                         "Changes to be committed:\n"
                         "  (use \"git restore --staged <file>...\" to unstage)\n"
-                        "        modified:   file_1.txt\n"
+                        "        \u001b[32mmodified:   file_1.txt\u001b[0m\n"
                         "\n") == repo.status());
 }
 
@@ -107,11 +107,11 @@ TEST_CASE_METHOD(TempRepo, "Test with a renamed file in working tree") {
                         "Changes not staged for commit:\n"
                         "  (use \"git add <file>...\" to update what will be committed)\n"
                         "  (use \"git restore <file>...\" to discard changes in working directory)\n"
-                        "        deleted:    file_3.txt\n"
+                        "        \u001b[31mdeleted:    file_3.txt\u001b[0m\n"
                         "\n"
                         "Untracked files:\n"
                         "  (use \"git add <file>...\" to include in what will be committed)\n"
-                        "        renamed.txt\n"
+                        "        \u001b[31mrenamed.txt\u001b[0m\n"
                         "\n"
                         "no changes added to commit (use \"git add\" and/or \"git commit -a\")\n") == repo.status());
 }
@@ -133,7 +133,7 @@ TEST_CASE_METHOD(TempRepo, "Test with a renamed file in index") {
                         "\n"
                         "Changes to be committed:\n"
                         "  (use \"git restore --staged <file>...\" to unstage)\n"
-                        "        renamed:    file_3.txt -> renamed.txt\n"
+                        "        \u001b[32mrenamed:    file_3.txt -> renamed.txt\u001b[0m\n"
                         "\n") == repo.status());
 }
 
@@ -147,11 +147,11 @@ TEST_CASE_METHOD(TempRepo, "Test with a deleted file in index") {
                         "\n"
                         "Changes to be committed:\n"
                         "  (use \"git restore --staged <file>...\" to unstage)\n"
-                        "        deleted:    file_2.txt\n"
+                        "        \u001b[32mdeleted:    file_2.txt\u001b[0m\n"
                         "\n"
                         "Untracked files:\n"
                         "  (use \"git add <file>...\" to include in what will be committed)\n"
-                        "        file_2.txt\n"
+                        "        \u001b[31mfile_2.txt\u001b[0m\n"
                         "\n") == repo.status());
 }
 

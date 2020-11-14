@@ -17,11 +17,11 @@ Status::~Status() {
     git_status_list_free(m_status);
 }
 
-void Status::toStream(std::ostream &stream) {
-    getBranchMessage(stream);
-    auto tracked_message = getTrackedMessage(stream);
-    auto staged_message = getStagedMessage(stream);
-    auto untracked_message = getUntrackedMessage(stream);
+void Status::toStream(std::ostream &stream, Colorize colorize) {
+    getBranchMessage(stream, colorize);
+    auto tracked_message = getTrackedMessage(stream, colorize);
+    auto staged_message = getStagedMessage(stream, colorize);
+    auto untracked_message = getUntrackedMessage(stream, colorize);
 
     if (tracked_message) {
         stream << std::string("no changes added to commit (use \"git add\" and/or \"git commit -a\")\n");
@@ -34,7 +34,7 @@ void Status::toStream(std::ostream &stream) {
     }
 }
 
-bool Status::getBranchMessage(std::ostream &stream) {
+bool Status::getBranchMessage(std::ostream &stream, Colorize colorize) {
     std::string message;
     message = "On branch master\n"
               "Your branch is up to date with 'origin/master'.\n"
@@ -45,22 +45,32 @@ bool Status::getBranchMessage(std::ostream &stream) {
     return true;
 }
 
-bool Status::getUntrackedMessage(std::ostream &stream) {
+bool Status::getUntrackedMessage(std::ostream &stream, Colorize colorize) {
     std::string header = "Untracked files:\n"
                          "  (use \"git add <file>...\" to include in what will be committed)\n";
-    return getStatusMessage(stream, header, GIT_STATUS_WT_NEW, offsetof(git_status_entry, index_to_workdir));
+    std::string color;
+    if (colorize == Colorize::COLORIZE) {
+    color = "\u001b[31m";
+    }
+    return getStatusMessage(stream, header, GIT_STATUS_WT_NEW, offsetof(git_status_entry, index_to_workdir), color);
 }
 
-bool Status::getTrackedMessage(std::ostream &stream) {
+bool Status::getTrackedMessage(std::ostream &stream, Colorize colorize) {
     std::string header = "Changes not staged for commit:\n"
                          "  (use \"git add <file>...\" to update what will be committed)\n"
                          "  (use \"git restore <file>...\" to discard changes in working directory)\n";
+
     std::string submodule_message = "  (commit or discard the untracked or modified content in submodules)\n";
+
+    std::string color;
+    if (colorize == Colorize::COLORIZE) {
+        color = "\u001b[31m";
+    }
 
     // For submodules we need to inject a message in between so must use a local string stream to cache up the file results
     std::stringstream local_stream;
     auto has_unstaged = getStatusMessage(local_stream, "", (GIT_STATUS_WT_MODIFIED | GIT_STATUS_WT_DELETED),
-                                         offsetof(git_status_entry, index_to_workdir));
+                                         offsetof(git_status_entry, index_to_workdir), color);
     if(has_unstaged){
         stream << header;
         if(m_unstaged_submodule){
@@ -71,17 +81,23 @@ bool Status::getTrackedMessage(std::ostream &stream) {
     return has_unstaged;
 }
 
-bool Status::getStagedMessage(std::ostream &stream) {
+bool Status::getStagedMessage(std::ostream &stream, Colorize colorize) {
     std::string header = "Changes to be committed:\n"
                          "  (use \"git restore --staged <file>...\" to unstage)\n";
+    std::string color;
+    if (colorize == Colorize::COLORIZE) {
+        color = "\u001b[32m";
+    }
+
     return getStatusMessage(stream, header,
                             (GIT_STATUS_INDEX_NEW | GIT_STATUS_INDEX_RENAMED | GIT_STATUS_INDEX_MODIFIED |
-                             GIT_STATUS_INDEX_DELETED), offsetof(git_status_entry, head_to_index));
+                             GIT_STATUS_INDEX_DELETED), offsetof(git_status_entry, head_to_index), color);
 
 }
 
 bool
-Status::getStatusMessage(std::ostream &stream, const std::string &header, int group_status, size_t diff_offset) {
+Status::getStatusMessage(std::ostream &stream, const std::string &header, int group_status, size_t diff_offset,
+                         const std::string &file_color) {
     auto num_entries = git_status_list_entrycount(m_status);
     std::string message;
     bool entries_found = false;
@@ -98,7 +114,8 @@ Status::getStatusMessage(std::ostream &stream, const std::string &header, int gr
                 stream << header;
             }
             auto **file_delta = (git_diff_delta **) ((uint8_t *) entry + diff_offset);
-            stream << getFileMessage((git_status_t)(entry->status & group_status), (*file_delta));
+            stream << "        " << getFileMessage((git_status_t) (entry->status & group_status), (*file_delta),
+                                                   file_color);
         }
     }
     if(entries_found){
@@ -108,7 +125,8 @@ Status::getStatusMessage(std::ostream &stream, const std::string &header, int gr
     return entries_found;
 }
 
-std::string Status::getFileMessage(git_status_t status, const git_diff_delta *file_diff) {
+std::string
+Status::getFileMessage(git_status_t status, const git_diff_delta *file_diff, const std::string &file_color) {
     std::string change_type;
     if(status & (GIT_STATUS_INDEX_MODIFIED | GIT_STATUS_WT_MODIFIED)) {
         change_type = "modified:   ";
@@ -125,31 +143,32 @@ std::string Status::getFileMessage(git_status_t status, const git_diff_delta *fi
     if(status & (GIT_STATUS_INDEX_RENAMED | GIT_STATUS_WT_RENAMED)) {
         file += std::string(" -> ") + file_diff->new_file.path;
     }
+    std::string epilog;
     if(status & GIT_STATUS_WT_MODIFIED) {
         // Trying for possible submodule state
         unsigned int sub_status;
         if(git_submodule_status(&sub_status, m_repo, file_diff->old_file.path, GIT_SUBMODULE_IGNORE_NONE) == 0){
-            std::string sub_message;
             if(sub_status & GIT_SUBMODULE_STATUS_WD_MODIFIED){
                 m_unstaged_submodule = true;
-                sub_message = "new commits";
+                epilog += "new commits";
             }
             if(sub_status & (GIT_SUBMODULE_STATUS_WD_WD_MODIFIED | GIT_SUBMODULE_STATUS_WD_INDEX_MODIFIED)){
                 m_unstaged_submodule = true;
-                if(!sub_message.empty()){
-                    sub_message += ", ";
+                if(!epilog.empty()){
+                    epilog += ", ";
                 }
-                sub_message += "modified content";
+                epilog += "modified content";
             }
             if(sub_status & GIT_SUBMODULE_STATUS_WD_UNTRACKED){
                 m_unstaged_submodule = true;
-                if(!sub_message.empty()){
-                    sub_message += ", ";
+                if(!epilog.empty()){
+                    epilog += ", ";
                 }
-                sub_message += "untracked content";
+                epilog += "untracked content";
             }
-            file += std::string(" (") + sub_message +")";
+            epilog = std::string(" (") + epilog + ")";
         }
     }
-    return std::string("        ") + change_type + file + "\n";
+    std::string end_color = file_color.empty() ? "" : "\u001b[0m";
+    return file_color + change_type + file + end_color + epilog + "\n";
 }
