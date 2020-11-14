@@ -11,7 +11,8 @@ class TempRepo {
 public:
     TempRepo();
     ~TempRepo();
-    void addFile(const std::string &filename);
+    void addFile(const std::string &filename, const std::string &submodule_path="");
+    void commit(const std::string &submodule_path="");
     void removeFile(const std::string &filename);
 
 protected:

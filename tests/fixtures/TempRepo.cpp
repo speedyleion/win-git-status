@@ -7,6 +7,8 @@
 #include <git2/index.h>
 #include <git2/clone.h>
 #include <git2/submodule.h>
+#include <git2/revparse.h>
+#include <git2/commit.h>
 #include "TempDirectory.hpp"
 #include "TempRepo.hpp"
 #include "RepoBuilder.hpp"
@@ -20,6 +22,8 @@ TempRepo::TempRepo() {
     auto name = Catch::getResultCapture().getCurrentTestName();
     std::transform(name.begin(), name.end(), name.begin(), ::tolower);
     std::replace(name.begin(), name.end(), ' ', '_');
+    std::replace(name.begin(), name.end(), ',', '_');
+    std::replace(name.begin(), name.end(), '.', '_');
     m_dir = TempDirectory::TempDir(name);
     auto origin = RepoBuilder::getOriginRepo();
     git_clone(&m_repo, origin.c_str(), m_dir.string().c_str(), NULL);
@@ -30,12 +34,23 @@ TempRepo::~TempRepo() {
     git_repository_free(m_repo);
 }
 
-void TempRepo::addFile(const std::string &filename) {
+void TempRepo::addFile(const std::string &filename, const std::string &submodule_path) {
+    auto repo = m_repo;
+    if(!submodule_path.empty()) {
+        git_submodule * sub_module;
+        git_submodule_lookup(&sub_module, m_repo, submodule_path.c_str());
+        git_submodule_open(&repo, sub_module);
+    }
+
     git_index * index;
-    git_repository_index(&index, m_repo);
+    git_repository_index(&index, repo);
     git_index_add_bypath(index, filename.c_str());
     git_index_write(index);
     git_index_free(index);
+
+    if(!submodule_path.empty()) {
+        git_repository_free(repo);
+    }
 }
 
 void TempRepo::removeFile(const std::string &filename) {
@@ -45,4 +60,36 @@ void TempRepo::removeFile(const std::string &filename) {
     git_index_write(index);
     git_index_free(index);
 
+}
+
+void TempRepo::commit(const std::string &submodule_path) {
+    auto repo = m_repo;
+    if(!submodule_path.empty()) {
+        git_submodule * sub_module;
+        git_submodule_lookup(&sub_module, m_repo, submodule_path.c_str());
+        git_submodule_open(&repo, sub_module);
+    }
+    git_signature signature = {"Tucan", "somewhere@foo.bar", 1000};
+
+    git_index * index;
+    git_repository_index(&index, repo);
+    git_oid tree_oid;
+    git_index_write_tree(&tree_oid, index);
+    git_tree * tree;
+    git_tree_lookup(&tree, repo, &tree_oid);
+
+    git_object * parent = NULL;
+    git_reference * ref = NULL;
+    git_revparse_ext(&parent, &ref, repo, "HEAD");
+
+    git_commit_create_v(&tree_oid, repo, "HEAD", &signature, &signature, NULL, "This is a test", tree,
+                        parent ? 1 : 0, parent);
+
+    git_object_free(parent);
+    git_reference_free(ref);
+    git_index_free(index);
+    git_tree_free(tree);
+    if(!submodule_path.empty()) {
+        git_repository_free(repo);
+    }
 }

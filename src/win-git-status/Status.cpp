@@ -129,10 +129,26 @@ std::string Status::getFileMessage(git_status_t status, const git_diff_delta *fi
         // Trying for possible submodule state
         unsigned int sub_status;
         if(git_submodule_status(&sub_status, m_repo, file_diff->old_file.path, GIT_SUBMODULE_IGNORE_NONE) == 0){
-            if(sub_status & GIT_SUBMODULE_STATUS_WD_UNTRACKED){
-                file += std::string(" (untracked content)");
+            std::string sub_message;
+            if(sub_status & GIT_SUBMODULE_STATUS_WD_MODIFIED){
                 m_unstaged_submodule = true;
+                sub_message = "new commits";
             }
+            if(sub_status & (GIT_SUBMODULE_STATUS_WD_WD_MODIFIED | GIT_SUBMODULE_STATUS_WD_INDEX_MODIFIED)){
+                m_unstaged_submodule = true;
+                if(!sub_message.empty()){
+                    sub_message += ", ";
+                }
+                sub_message += "modified content";
+            }
+            if(sub_status & GIT_SUBMODULE_STATUS_WD_UNTRACKED){
+                m_unstaged_submodule = true;
+                if(!sub_message.empty()){
+                    sub_message += ", ";
+                }
+                sub_message += "untracked content";
+            }
+            file += std::string(" (") + sub_message +")";
         }
     }
     return std::string("        ") + change_type + file + "\n";
