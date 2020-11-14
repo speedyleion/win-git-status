@@ -5,6 +5,8 @@
 #include <git2/status.h>
 #include <git2/submodule.h>
 #include <sstream>
+#include <git2/branch.h>
+#include <git2/graph.h>
 #include "Status.hpp"
 
 Status::Status(git_repository *repo) : m_repo(repo) {
@@ -35,12 +37,67 @@ void Status::toStream(std::ostream &stream, Colorize colorize) {
 }
 
 bool Status::getBranchMessage(std::ostream &stream, Colorize colorize) {
-    std::string message;
-    message = "On branch master\n"
-              "Your branch is up to date with 'origin/master'.\n"
-              "\n";
+    git_reference * branch = NULL;
+    git_repository_head(&branch, m_repo);
+    const char * branch_name = NULL;
 
-    stream << message;
+    if(git_branch_name(&branch_name, branch) != 0) {
+
+        std::string color;
+        std::string color_end;
+        if (colorize == Colorize::COLORIZE) {
+            color = "\u001b[31m";
+            color_end = "\u001b[0m";
+        }
+        auto oid = git_reference_target(branch);
+        git_object * object = NULL;
+        git_object_lookup(&object, m_repo, oid, GIT_OBJECT_COMMIT);
+        git_buf buffer = {0};
+        git_object_short_id(&buffer, object);
+        stream << color << "HEAD detached at" << color_end << " " << buffer.ptr << "\n";
+        git_reference_free(branch);
+        git_object_free(object);
+        return true;
+    }
+
+    stream << "On branch " << branch_name << "\n";
+
+    git_reference * upstream = NULL;
+    if(git_branch_upstream(&upstream, branch) == 0){
+        const char * upstream_name = NULL;
+        git_branch_name(&upstream_name, upstream);
+
+        size_t ahead = 0;
+        size_t behind = 0;
+        auto local_oid = git_reference_target(branch);
+        auto upstream_oid = git_reference_target(upstream);
+        git_graph_ahead_behind(&ahead, &behind, m_repo, local_oid, upstream_oid);
+
+        if(ahead && behind) {
+            stream << "Your branch and '" << upstream_name << "' have diverged,\n";
+            stream << "and have " << ahead << " and " << behind << " different commits each, respectively.\n";
+            stream << "  (use \"git pull\" to merge the remote branch into yours)\n";
+        }
+        else if(ahead) {
+            std::string plural = ahead == 1 ? "" : "s";
+            stream << "Your branch is ahead of '" << upstream_name << "' by " << ahead << " commit" << plural << ".\n";
+            stream << "  (use \"git push\" to publish your local commits)\n";
+        }
+        else if(behind) {
+            std::string plural = behind == 1 ? "" : "s";
+            stream << "Your branch is behind '" << upstream_name << "' by " << behind << " commit" << plural << ", and can be fast-forwarded.\n";
+            stream << "  (use \"git pull\" to update your local branch)\n";
+        }
+        else{
+            stream << "Your branch is up to date with '" << upstream_name << "'.\n";
+        }
+
+        stream << "\n";
+
+        git_reference_free(upstream);
+    }
+
+    git_reference_free(branch);
 
     return true;
 }

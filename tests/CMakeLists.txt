@@ -14,3 +14,7 @@ add_test(NAME test_status_unstaged COMMAND test_status_unstaged)
 add_executable(test_repo TestRepo.cpp)
 target_link_libraries(test_repo Catch2::Catch2 fixtures test_main repo)
 add_test(NAME test_repo COMMAND test_repo)
+
+add_executable(test_status_branch TestStatusBranch.cpp)
+target_link_libraries(test_status_branch Catch2::Catch2 fixtures test_main repo)
+add_test(NAME test_status_branch COMMAND test_status_branch)

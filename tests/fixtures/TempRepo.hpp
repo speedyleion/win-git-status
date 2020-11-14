@@ -13,6 +13,7 @@ public:
     ~TempRepo();
     void addFile(const std::string &filename, const std::string &submodule_path="");
     void commit(const std::string &submodule_path="");
+    void branch(const std::string &branch_name);
     void removeFile(const std::string &filename);
 
 protected:

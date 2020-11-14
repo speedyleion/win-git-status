@@ -61,6 +61,14 @@ void CreateSessionRemotes(const std::filesystem::path & path) {
     RepoBuilder::setOriginRepo(main_repo.string());
     auto repo = RepoBuilder(main_repo.string());
 
+    // Force stable line endings for some reason debug vs release provides different values.
+    auto attribute_name = main_repo / ".gitattributes";
+    auto attribute_file = std::ofstream(attribute_name);
+    attribute_file << "*	text=auto\n";
+    attribute_file.close();
+    repo.addFile(".gitattributes");
+    repo.commit("Adding .gitattributes");
+
     for(const auto & filename:files){
         auto full_path = main_repo / filename;
         std::filesystem::create_directories(full_path.parent_path());
@@ -68,16 +76,16 @@ void CreateSessionRemotes(const std::filesystem::path & path) {
         file << "Hello, World!\n";
         file.close();
         repo.addFile(filename);
+        repo.commit("Adding " + filename);
     }
-    repo.commit("Adding Files");
 
     std::vector<std::string> sub_modules = {"sub_repo_1", "sub_repo_2"};
     for(const auto & sub_module:sub_modules) {
         auto sub_path = path / sub_module;
         CreateSubmodule(sub_path);
         repo.addSubmodule(sub_path.string(), sub_module);
+        repo.commit("Add submodule " + sub_module);
     }
-    repo.commit("Adding Submodules");
 }
 
 int main( int argc, char* argv[] ) {

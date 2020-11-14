@@ -4,11 +4,13 @@
 //          https://www.boost.org/LICENSE_1_0.txt)#include "TempRepo.hpp"
 
 #include <catch2/catch.hpp>
+#include <git2/branch.h>
 #include <git2/index.h>
 #include <git2/clone.h>
 #include <git2/submodule.h>
 #include <git2/revparse.h>
 #include <git2/commit.h>
+#include <iostream>
 #include "TempDirectory.hpp"
 #include "TempRepo.hpp"
 #include "RepoBuilder.hpp"
@@ -92,4 +94,20 @@ void TempRepo::commit(const std::string &submodule_path) {
     if(!submodule_path.empty()) {
         git_repository_free(repo);
     }
+}
+
+void TempRepo::branch(const std::string &branch_name) {
+    git_commit *commit = NULL;
+    git_reference * head = NULL;
+    git_repository_head(&head, m_repo);
+    auto oid = git_reference_target(head);
+    git_commit_lookup(&commit, m_repo, oid);
+    git_reference_free(head);
+
+    git_reference * reference = NULL;
+    git_branch_create(&reference, m_repo, branch_name.c_str(), commit, 0);
+    git_repository_set_head(m_repo, git_reference_name(reference));
+    git_commit_free(commit);
+    git_reference_free(reference);
+
 }
