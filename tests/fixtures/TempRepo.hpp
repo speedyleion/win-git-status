@@ -11,10 +11,11 @@ class TempRepo {
 public:
     TempRepo();
     ~TempRepo();
-    void addFile(const std::string &filename, const std::string &submodule_path="");
+    void addFile(const std::filesystem::path &filename, const std::string &submodule_path="");
     void commit(const std::string &submodule_path="");
     void branch(const std::string &branch_name);
     void removeFile(const std::string &filename);
+    void merge(const std::string &commitish);
 
 protected:
     std::filesystem::path m_dir;

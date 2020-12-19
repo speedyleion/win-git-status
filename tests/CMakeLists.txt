@@ -7,9 +7,17 @@ add_executable(test_no_args TestNoArgs.cpp)
 target_link_libraries(test_no_args Catch2::Catch2 fixtures test_main repo)
 add_test(NAME test_no_args COMMAND test_no_args)
 
+add_executable(test_status_staged TestStatusStaged.cpp)
+target_link_libraries(test_status_staged Catch2::Catch2 fixtures test_main repo)
+add_test(NAME test_status_staged COMMAND test_status_staged)
+
 add_executable(test_status_unstaged TestStatusUnstaged.cpp)
 target_link_libraries(test_status_unstaged Catch2::Catch2 fixtures test_main repo)
 add_test(NAME test_status_unstaged COMMAND test_status_unstaged)
+
+add_executable(test_status_unmerged TestStatusUnmerged.cpp)
+target_link_libraries(test_status_unmerged Catch2::Catch2 fixtures test_main repo)
+add_test(NAME test_status_unmerged COMMAND test_status_unmerged)
 
 add_executable(test_repo TestRepo.cpp)
 target_link_libraries(test_repo Catch2::Catch2 fixtures test_main repo)
@@ -18,3 +26,7 @@ add_test(NAME test_repo COMMAND test_repo)
 add_executable(test_status_branch TestStatusBranch.cpp)
 target_link_libraries(test_status_branch Catch2::Catch2 fixtures test_main repo)
 add_test(NAME test_status_branch COMMAND test_status_branch)
+
+add_executable(test_repo_state TestRepoState.cpp)
+target_link_libraries(test_repo_state Catch2::Catch2 fixtures test_main repo)
+add_test(NAME test_repo_state COMMAND test_repo_state)

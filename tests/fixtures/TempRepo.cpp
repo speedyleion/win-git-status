@@ -7,6 +7,7 @@
 #include <git2/branch.h>
 #include <git2/index.h>
 #include <git2/clone.h>
+#include <git2/merge.h>
 #include <git2/submodule.h>
 #include <git2/revparse.h>
 #include <git2/commit.h>
@@ -36,7 +37,7 @@ TempRepo::~TempRepo() {
     git_repository_free(m_repo);
 }
 
-void TempRepo::addFile(const std::string &filename, const std::string &submodule_path) {
+void TempRepo::addFile(const std::filesystem::path &filename, const std::string &submodule_path) {
     auto repo = m_repo;
     if(!submodule_path.empty()) {
         git_submodule * sub_module;
@@ -46,7 +47,15 @@ void TempRepo::addFile(const std::string &filename, const std::string &submodule
 
     git_index * index;
     git_repository_index(&index, repo);
-    git_index_add_bypath(index, filename.c_str());
+    auto relative_name = filename.string();
+    if(filename.has_root_name()) {
+        relative_name = filename.lexically_relative(m_dir).string();
+    }
+
+    // libgit2 only works with forward slashes
+    std::replace(relative_name.begin(), relative_name.end(), '\\', '/');
+    git_index_add_bypath(index, relative_name.c_str());
+
     git_index_write(index);
     git_index_free(index);
 
@@ -110,4 +119,14 @@ void TempRepo::branch(const std::string &branch_name) {
     git_commit_free(commit);
     git_reference_free(reference);
 
+}
+
+void TempRepo::merge(const std::string &commitish) {
+    git_annotated_commit *annotated_commit;
+    git_annotated_commit_from_revspec(&annotated_commit, m_repo, commitish.c_str());
+    git_merge_options merge_options = GIT_MERGE_OPTIONS_INIT;
+    git_checkout_options checkout_options = GIT_CHECKOUT_OPTIONS_INIT;
+    const git_annotated_commit *const_annotated_commit = annotated_commit;
+    git_merge(m_repo, &const_annotated_commit, 1, &merge_options, &checkout_options);
+    git_annotated_commit_free(annotated_commit);
 }

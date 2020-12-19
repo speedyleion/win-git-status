@@ -16,9 +16,14 @@ public:
     Status(git_repository * repo);
     ~Status();
     void toStream(std::ostream &stream, Colorize colorize=Colorize::NO_COLORIZE);
+
+    bool getUnmergedMessage(std::ostream &stream, Colorize colorize=Colorize::NO_COLORIZE);
+
     bool getUntrackedMessage(std::ostream &stream, Colorize colorize=Colorize::NO_COLORIZE);
 
-    bool getBranchMessage(std::ostream &stream, Colorize colorize=Colorize::NO_COLORIZE);
+    void getRepoStateMessage(std::ostream &stream, Colorize colorize=Colorize::NO_COLORIZE);
+
+    void getBranchMessage(std::ostream &stream, Colorize colorize=Colorize::NO_COLORIZE);
 
     bool getTrackedMessage(std::ostream &stream, Colorize colorize=Colorize::NO_COLORIZE);
 
@@ -34,6 +39,8 @@ private:
     git_status_list *m_status;
     git_repository *m_repo;
     bool m_unstaged_submodule = false;
+
+    bool inMergedState();
 };
 
 

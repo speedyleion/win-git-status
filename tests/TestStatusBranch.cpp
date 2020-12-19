@@ -8,6 +8,7 @@
 #include <git2/repository.h>
 #include <git2/revparse.h>
 #include <git2/reset.h>
+#include <fstream>
 #include "TempRepo.hpp"
 #include "Status.hpp"
 
@@ -208,39 +209,5 @@ TEST_CASE_METHOD(TempRepo, "Test detached state with color") {
     REQUIRE("\u001b[31mHEAD detached at\u001b[0m 92b4c41\n" == stream.str());
 }
 
-/*
-On branch main
-Your branch is behind 'origin/main' by 1 commit, and can be fast-forwarded.
-  (use "git pull" to update your local branch)
- */
-
-/*
-On branch main
-Your branch and 'origin/main' have diverged,
-and have 1 and 1 different commits each, respectively.
-  (use "git pull" to merge the remote branch into yours)
-
-nothing to commit, working tree clean
-
- */
-
 /* What about tags? */
 
-/*
-On branch branch_status
-Unmerged paths:
-  (use "git restore --staged <file>..." to unstage)
-  (use "git add <file>..." to mark resolution)
-        both modified:   tests/TestStatusBranch.cpp
-
-Changes not staged for commit:
-  (use "git add <file>..." to update what will be committed)
-  (use "git restore <file>..." to discard changes in working directory)
-        modified:   src/win-git-status/Repo.cpp
-
-Untracked files:
-  (use "git add <file>..." to include in what will be committed)
-        foo.txt
-
-no changes added to commit (use "git add" and/or "git commit -a")
- */

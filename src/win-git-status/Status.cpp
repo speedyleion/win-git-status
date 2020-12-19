@@ -7,6 +7,7 @@
 #include <sstream>
 #include <git2/branch.h>
 #include <git2/graph.h>
+#include <git2/index.h>
 #include "Status.hpp"
 
 Status::Status(git_repository *repo) : m_repo(repo) {
@@ -21,22 +22,24 @@ Status::~Status() {
 
 void Status::toStream(std::ostream &stream, Colorize colorize) {
     getBranchMessage(stream, colorize);
+    getRepoStateMessage(stream);
     auto tracked_message = getTrackedMessage(stream, colorize);
     auto staged_message = getStagedMessage(stream, colorize);
+    auto unmerged_message = getUnmergedMessage(stream, colorize);
     auto untracked_message = getUntrackedMessage(stream, colorize);
 
-    if (tracked_message) {
-        stream << std::string("no changes added to commit (use \"git add\" and/or \"git commit -a\")\n");
-    } else if(staged_message){
+    if(staged_message) {
         // do nothing
+    } else if (tracked_message || unmerged_message) {
+        stream << "no changes added to commit (use \"git add\" and/or \"git commit -a\")\n";
     } else if(untracked_message){
-        stream << std::string("nothing added to commit but untracked files present (use \"git add\" to track)\n");
+        stream << "nothing added to commit but untracked files present (use \"git add\" to track)\n";
     } else {
-        stream << std::string("nothing to commit, working tree clean\n");
+        stream << "nothing to commit, working tree clean\n";
     }
 }
 
-bool Status::getBranchMessage(std::ostream &stream, Colorize colorize) {
+void Status::getBranchMessage(std::ostream &stream, Colorize colorize) {
     git_reference * branch = NULL;
     git_repository_head(&branch, m_repo);
     const char * branch_name = NULL;
@@ -57,7 +60,7 @@ bool Status::getBranchMessage(std::ostream &stream, Colorize colorize) {
         stream << color << "HEAD detached at" << color_end << " " << buffer.ptr << "\n";
         git_reference_free(branch);
         git_object_free(object);
-        return true;
+        return;
     }
 
     stream << "On branch " << branch_name << "\n";
@@ -98,8 +101,6 @@ bool Status::getBranchMessage(std::ostream &stream, Colorize colorize) {
     }
 
     git_reference_free(branch);
-
-    return true;
 }
 
 bool Status::getUntrackedMessage(std::ostream &stream, Colorize colorize) {
@@ -139,8 +140,11 @@ bool Status::getTrackedMessage(std::ostream &stream, Colorize colorize) {
 }
 
 bool Status::getStagedMessage(std::ostream &stream, Colorize colorize) {
-    std::string header = "Changes to be committed:\n"
-                         "  (use \"git restore --staged <file>...\" to unstage)\n";
+    std::string header = "Changes to be committed:\n";
+
+    if(!inMergedState()) {
+        header += "  (use \"git restore --staged <file>...\" to unstage)\n";
+    }
     std::string color;
     if (colorize == Colorize::COLORIZE) {
         color = "\u001b[32m";
@@ -184,7 +188,7 @@ Status::getStatusMessage(std::ostream &stream, const std::string &header, int gr
 
 std::string
 Status::getFileMessage(git_status_t status, const git_diff_delta *file_diff, const std::string &file_color) {
-    std::string change_type;
+    std::string change_type = "";
     if(status & (GIT_STATUS_INDEX_MODIFIED | GIT_STATUS_WT_MODIFIED)) {
         change_type = "modified:   ";
     } else if(status & (GIT_STATUS_INDEX_RENAMED | GIT_STATUS_WT_RENAMED)) {
@@ -194,6 +198,8 @@ Status::getFileMessage(git_status_t status, const git_diff_delta *file_diff, con
     } else if(status & GIT_STATUS_INDEX_NEW) {
         // GIT_STATUS_WT_NEW is intentionally not here, it goes with untracked files and doesn't get a file decorator.
         change_type = "new file:   ";
+    } else if(status & GIT_STATUS_CONFLICTED) {
+        change_type = "both modified:   ";
     }
 
     std::string file(file_diff->old_file.path);
@@ -228,4 +234,39 @@ Status::getFileMessage(git_status_t status, const git_diff_delta *file_diff, con
     }
     std::string end_color = file_color.empty() ? "" : "\u001b[0m";
     return file_color + change_type + file + end_color + epilog + "\n";
+}
+
+bool Status::getUnmergedMessage(std::ostream &stream, Colorize colorize) {
+    std::string header = "Unmerged paths:\n"
+                         "  (use \"git add <file>...\" to mark resolution)\n";
+
+    std::string color;
+    if (colorize == Colorize::COLORIZE) {
+        color = "\u001b[31m";
+    }
+    return getStatusMessage(stream, header, GIT_STATUS_CONFLICTED, offsetof(git_status_entry, index_to_workdir), color);
+}
+
+void Status::getRepoStateMessage(std::ostream &stream, Colorize colorize) {
+    if(inMergedState()) {
+        git_index * index;
+        git_repository_index(&index, m_repo);
+        if (git_index_has_conflicts(index)) {
+            stream << "You have unmerged paths.\n"
+                      "  (fix conflicts and run \"git commit\")\n"
+                      "  (use \"git merge --abort\" to abort the merge)\n"
+                      "\n";
+        } else {
+            stream << "All conflicts fixed but you are still merging.\n"
+                      "  (use \"git commit\" to conclude merge)\n"
+                      "\n";
+        }
+        git_index_free(index);
+    }
+    return;
+}
+
+bool Status::inMergedState() {
+    auto repo_state = git_repository_state(m_repo);
+    return repo_state == GIT_REPOSITORY_STATE_MERGE;
 }
