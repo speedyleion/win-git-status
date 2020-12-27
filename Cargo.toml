@@ -1,5 +1,5 @@
 [package]
-name = "rs-win-git-status"
+name = "win-git-status"
 version = "0.1.0"
 authors = ["Nick <speedyleion@users.noreply.github.com>"]
 edition = "2018"
