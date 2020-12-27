@@ -10,3 +10,4 @@ edition = "2018"
 
 [dev-dependencies]
 git2 = "0.13"
+temp_testdir = "0.2"
