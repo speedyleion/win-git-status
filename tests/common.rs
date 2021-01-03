@@ -4,11 +4,11 @@
  *    (See accompanying file LICENSE or copy at
  *          https://www.boost.org/LICENSE_1_0.txt)
  */
-use git2::{Repository, Error, Oid, Signature, Time};
+use git2::{Repository, Signature, Time};
 use std::path::Path;
 use std::fs::File;
 
-pub fn test_repo(path: &str) -> Repository {
+pub fn test_repo(path: &str) -> () {
     let repo = Repository::init(path).unwrap();
     let mut index = repo.index().unwrap();
     let root = repo.path().parent().unwrap();
@@ -25,7 +25,6 @@ pub fn test_repo(path: &str) -> Repository {
         &tree,
         // No parents yet this is the first commit
         &[]
-    );
-    repo
+    ).unwrap();
 }
 
