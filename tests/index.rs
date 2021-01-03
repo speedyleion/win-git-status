@@ -5,9 +5,9 @@
  *          https://www.boost.org/LICENSE_1_0.txt)
  */
 extern crate win_git_status;
+use git2::Repository;
 use temp_testdir::TempDir;
 use win_git_status::Index;
-use git2::Repository;
 mod common;
 
 #[test]
@@ -17,5 +17,8 @@ fn index_has_one_entry() {
     common::test_repo(temp_path_str);
     let repo = Repository::open(temp_path_str).unwrap();
     let mut index = repo.index().unwrap();
-    assert_eq!(index.write_tree().unwrap().as_bytes(), Index::new(&temp).oid());
+    assert_eq!(
+        index.write_tree().unwrap().as_bytes(),
+        Index::new(&temp).oid()
+    );
 }

@@ -5,8 +5,8 @@
  *          https://www.boost.org/LICENSE_1_0.txt)
  */
 use git2::{Repository, Signature, Time};
-use std::path::Path;
 use std::fs::File;
+use std::path::Path;
 
 pub fn test_repo(path: &str) -> () {
     let repo = Repository::init(path).unwrap();
@@ -24,7 +24,7 @@ pub fn test_repo(path: &str) -> () {
         "A message",
         &tree,
         // No parents yet this is the first commit
-        &[]
-    ).unwrap();
+        &[],
+    )
+    .unwrap();
 }
-
