@@ -9,9 +9,9 @@ use std::path::Path;
 use std::error::Error;
 
 /// An index of a repo
-pub struct Index{
+pub struct Index {
     path: String,
-    oid: u64
+    oid: [u8; 26]
 }
 
 impl Index {
@@ -19,11 +19,11 @@ impl Index {
     ///
     /// Returns error if the index file doesn't exist for a repo
     pub fn new(path: &Path) -> Index {
-        let oid = 0;
+        let oid = [0; 26];
         let index = Index{path: String::from(path.to_str().unwrap()), oid};
         index
     }
-    pub fn oid(&self) -> u64 {
-        self.oid
+    pub fn oid(&self) -> &[u8] {
+        &self.oid
     }
 }

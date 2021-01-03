@@ -14,5 +14,5 @@ fn index_has_one_entry() {
     let temp = TempDir::default().permanent();
     let repo = common::test_repo(temp.to_str().unwrap());
     let mut index = repo.index().unwrap();
-    assert_eq!(index.write().unwrap().as_bytes(), Index::new(&temp).oid());
+    assert_eq!(index.write_tree().unwrap().as_bytes(), Index::new(&temp).oid());
 }
