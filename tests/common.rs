@@ -8,7 +8,7 @@ use git2::{Repository, Error, Oid, Signature, Time};
 use std::path::Path;
 use std::fs::File;
 
-pub fn test_repo(path: &str) -> Result<Oid, Error> {
+pub fn test_repo(path: &str) -> Repository {
     let repo = Repository::init(path).unwrap();
     let mut index = repo.index().unwrap();
     let root = repo.path().parent().unwrap();
@@ -25,6 +25,7 @@ pub fn test_repo(path: &str) -> Result<Oid, Error> {
         &tree,
         // No parents yet this is the first commit
         &[]
-    )
+    );
+    repo
 }
 
