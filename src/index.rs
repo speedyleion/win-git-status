@@ -69,9 +69,20 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_read_header() {
+    fn test_read_header_version_2() {
         let version: u32 = 2;
         let entries: u32 = 3;
+        let mut header: Vec<u8> = vec![];
+        header.extend(b"DIRC");
+        header.extend(&version.to_be_bytes());
+        header.extend(&entries.to_be_bytes());
+        assert_eq!(Index::read_header(&header), Header{version, entries});
+    }
+
+    #[test]
+    fn test_read_header_version_3() {
+        let version: u32 = 3;
+        let entries: u32 = 9;
         let mut header: Vec<u8> = vec![];
         header.extend(b"DIRC");
         header.extend(&version.to_be_bytes());
