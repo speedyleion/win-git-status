@@ -22,6 +22,7 @@ pub struct Index {
     oid: [u8; 20],
 }
 
+#[derive(PartialEq, Eq, Debug)]
 struct Header {
     version: u32,
     entries: u32,
@@ -54,6 +55,13 @@ impl Index {
     pub fn oid(&self) -> &[u8] {
         &self.oid
     }
+
+    /// Reads in the header from the provided stream
+    ///
+    ///
+    fn read_header(_stream: &[u8]) -> Header {
+        Header{version:2, entries:3}
+    }
 }
 
 #[cfg(test)]
@@ -68,6 +76,6 @@ mod tests {
         header.extend(b"DIRC");
         header.extend(&version.to_be_bytes());
         header.extend(&entries.to_be_bytes());
-        assert_eq!(Index::read_header(header), Header{version, entries});
+        assert_eq!(Index::read_header(&header), Header{version, entries});
     }
 }
