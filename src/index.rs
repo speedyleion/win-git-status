@@ -6,6 +6,10 @@
  */
 
 use std::path::Path;
+use nom::number::complete::be_u32;
+use nom::bytes::complete::tag;
+use nom::IResult;
+use nom::sequence::tuple;
 
 /// An index of a repo.
 /// Some refer to this as the cache or staging area.
@@ -59,8 +63,13 @@ impl Index {
     /// Reads in the header from the provided stream
     ///
     ///
-    fn read_header(_stream: &[u8]) -> Header {
-        Header{version:2, entries:3}
+    fn read_header(stream: &[u8]) -> IResult<&[u8], Header> {
+        let signature = tag("DIRC");
+
+        let (input, (_, version,entries)) =
+                tuple((signature, be_u32, be_u32))(stream)?;
+
+        Ok((input, Header { version, entries }))
     }
 }
 
@@ -76,7 +85,7 @@ mod tests {
         header.extend(b"DIRC");
         header.extend(&version.to_be_bytes());
         header.extend(&entries.to_be_bytes());
-        assert_eq!(Index::read_header(&header), Header{version, entries});
+        assert_eq!(Index::read_header(&header), Ok((&b""[..], Header{version, entries})));
     }
 
     #[test]
@@ -87,6 +96,6 @@ mod tests {
         header.extend(b"DIRC");
         header.extend(&version.to_be_bytes());
         header.extend(&entries.to_be_bytes());
-        assert_eq!(Index::read_header(&header), Header{version, entries});
+        assert_eq!(Index::read_header(&header), Ok((&b""[..], Header{version, entries})));
     }
 }
