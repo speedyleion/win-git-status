@@ -5,11 +5,11 @@
  *          https://www.boost.org/LICENSE_1_0.txt)
  */
 
-use std::path::Path;
-use nom::number::complete::be_u32;
 use nom::bytes::complete::tag;
-use nom::IResult;
+use nom::number::complete::be_u32;
 use nom::sequence::tuple;
+use nom::IResult;
+use std::path::Path;
 
 /// An index of a repo.
 /// Some refer to this as the cache or staging area.
@@ -67,8 +67,7 @@ impl Index {
     fn read_header(stream: &[u8]) -> IResult<&[u8], Header> {
         let signature = tag("DIRC");
 
-        let (input, (_, version, entries)) =
-            tuple((signature, be_u32, be_u32))(stream)?;
+        let (input, (_, version, entries)) = tuple((signature, be_u32, be_u32))(stream)?;
 
         Ok((input, Header { version, entries }))
     }
@@ -86,7 +85,10 @@ mod tests {
         header.extend(b"DIRC");
         header.extend(&version.to_be_bytes());
         header.extend(&entries.to_be_bytes());
-        assert_eq!(Index::read_header(&header), Ok((&b""[..], Header { version, entries })));
+        assert_eq!(
+            Index::read_header(&header),
+            Ok((&b""[..], Header { version, entries }))
+        );
     }
 
     #[test]
@@ -97,7 +99,10 @@ mod tests {
         header.extend(b"DIRC");
         header.extend(&version.to_be_bytes());
         header.extend(&entries.to_be_bytes());
-        assert_eq!(Index::read_header(&header), Ok((&b""[..], Header { version, entries })));
+        assert_eq!(
+            Index::read_header(&header),
+            Ok((&b""[..], Header { version, entries }))
+        );
     }
 
     #[test]
@@ -109,17 +114,9 @@ mod tests {
         header.extend(&version.to_be_bytes());
         header.extend(&entries.to_be_bytes());
         header.extend(b"tail stuff");
-        assert_eq!(Index::read_header(&header), Ok((&b"tail stuff"[..], Header { version, entries })));
-    }
-
-    #[test]
-    fn test_read_header_errors_with_improper_signature() {
-        let version: u32 = 4;
-        let entries: u32 = 2;
-        let mut header: Vec<u8> = vec![];
-        header.extend(b"BAD");
-        header.extend(&version.to_be_bytes());
-        header.extend(&entries.to_be_bytes());
-        assert_eq!(Index::read_header(&header), Ok((&b""[..], Header { version, entries })));
+        assert_eq!(
+            Index::read_header(&header),
+            Ok((&b"tail stuff"[..], Header { version, entries }))
+        );
     }
 }
