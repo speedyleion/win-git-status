@@ -99,4 +99,27 @@ mod tests {
         header.extend(&entries.to_be_bytes());
         assert_eq!(Index::read_header(&header), Ok((&b""[..], Header { version, entries })));
     }
+
+    #[test]
+    fn test_read_header_leaves_subsequent_bytes_in_stream() {
+        let version: u32 = 4;
+        let entries: u32 = 2;
+        let mut header: Vec<u8> = vec![];
+        header.extend(b"DIRC");
+        header.extend(&version.to_be_bytes());
+        header.extend(&entries.to_be_bytes());
+        header.extend(b"tail stuff");
+        assert_eq!(Index::read_header(&header), Ok((&b"tail stuff"[..], Header { version, entries })));
+    }
+
+    #[test]
+    fn test_read_header_errors_with_improper_signature() {
+        let version: u32 = 4;
+        let entries: u32 = 2;
+        let mut header: Vec<u8> = vec![];
+        header.extend(b"BAD");
+        header.extend(&version.to_be_bytes());
+        header.extend(&entries.to_be_bytes());
+        assert_eq!(Index::read_header(&header), Ok((&b""[..], Header { version, entries })));
+    }
 }
