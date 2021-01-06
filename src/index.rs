@@ -63,6 +63,7 @@ impl Index {
     /// Reads in the header from the provided stream
     ///
     ///
+    #[allow(dead_code)]
     fn read_header(stream: &[u8]) -> IResult<&[u8], Header> {
         let signature = tag("DIRC");
 
