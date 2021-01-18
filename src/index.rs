@@ -181,4 +181,19 @@ mod tests {
             Ok((&b""[..], Entry {sha: *sha, name: String::from_utf8(name.to_vec()).unwrap()}))
         );
     }
+
+    #[test]
+    fn test_read_entry_new_name_irrelevant_prefix() {
+        let name= b"a/different/name/to/a/file/with.ext";
+        let sha = b"ab7ca9aba237a18e3f8a";
+        let mut stream: Vec<u8> = vec![0; 40];
+        stream.extend(sha);
+        let name_length: u16 = name.len() as u16;
+        stream.extend(&name_length.to_be_bytes());
+        stream.extend(name);
+        assert_eq!(
+            Index::read_entry(&stream),
+            Ok((&b""[..], Entry {sha: *sha, name: String::from_utf8(name.to_vec()).unwrap()}))
+        );
+    }
 }
