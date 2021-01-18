@@ -13,7 +13,6 @@ use nom::take;
 use nom::named;
 
 use nom::do_parse;
-use nom::take_str;
 use nom::IResult;
 use std::convert::TryInto;
 use std::path::Path;
@@ -97,8 +96,8 @@ impl Index {
                 take!(40) >>
                 sha: take!(20) >>
                 name_size: be_u16 >>
-                name: take_str!(name_size) >>
-                (Entry{sha: sha.try_into().unwrap(), name: name.to_string()})
+                name: take!(name_size) >>
+                (Entry{sha: sha.try_into().unwrap(), name: String::from_utf8(name.to_vec()).unwrap()})
             )
         );
         entry(stream)
@@ -154,7 +153,7 @@ mod tests {
 
     #[test]
     fn test_read_of_file_entry() {
-        let name = "some/file/name";
+        let name= b"some/file/name";
         let sha = b"abacadaba2376182368a";
         let mut stream: Vec<u8> = vec![];
         let ctime: u64 = 10;
@@ -163,6 +162,8 @@ mod tests {
         stream.extend(&mtime.to_be_bytes());
         let dev: u32 = 30;
         stream.extend(&dev.to_be_bytes());
+        let ino: u32 = 30;
+        stream.extend(&ino.to_be_bytes());
         let mode: u32 = 40;
         stream.extend(&mode.to_be_bytes());
         let uid: u32 = 50;
@@ -174,9 +175,10 @@ mod tests {
         stream.extend(sha);
         let name_length: u16 = name.len() as u16;
         stream.extend(&name_length.to_be_bytes());
+        stream.extend(name);
         assert_eq!(
             Index::read_entry(&stream),
-            Ok((&b""[..], Entry {sha: *sha, name: name.to_string()}))
+            Ok((&b""[..], Entry {sha: *sha, name: String::from_utf8(name.to_vec()).unwrap()}))
         );
     }
 }
