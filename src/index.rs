@@ -8,7 +8,12 @@
 use nom::bytes::complete::tag;
 use nom::number::complete::be_u32;
 use nom::sequence::tuple;
+use nom::take;
+use nom::named;
+use nom::do_parse;
+use nom::take_str;
 use nom::IResult;
+
 use std::path::Path;
 
 /// An index of a repo.
@@ -30,6 +35,14 @@ pub struct Index {
 struct Header {
     version: u32,
     entries: u32,
+}
+
+/// Represents an index entry, i.e. a file or blob
+#[derive(PartialEq, Eq, Debug)]
+struct Entry {
+    // The docs call this "object name"
+    sha: String,
+    name: String,
 }
 
 impl Index {
@@ -70,6 +83,23 @@ impl Index {
         let (input, (_, version, entries)) = tuple((signature, be_u32, be_u32))(stream)?;
 
         Ok((input, Header { version, entries }))
+    }
+
+    /// Reads in entry from the provided stream
+    ///
+    ///
+    #[allow(dead_code)]
+    fn read_entry(stream: &[u8]) -> IResult<&[u8], Entry> {
+        named!(entry<Entry> ,
+            do_parse!(
+                take!(40) >>
+                sha: take_str!(20) >>
+                name_size: be_u32 >>
+                name: take_str!(name_size) >>
+                (Entry{sha: sha.to_string(), name: name.to_string()})
+            )
+        );
+        entry(stream)
     }
 }
 
@@ -117,6 +147,19 @@ mod tests {
         assert_eq!(
             Index::read_header(&header),
             Ok((&b"tail stuff"[..], Header { version, entries }))
+        );
+    }
+
+    #[test]
+    fn test_read_of_file_entry() {
+        let name = "some/file/name";
+        let sha= "a bad sha string";
+        let mut stream: Vec<u8> = vec![];
+        let ctime_seconds: u32 = 30;
+        stream.extend(&ctime_seconds.to_be_bytes());
+        assert_eq!(
+            Index::read_entry(&stream),
+            Ok((&b""[..], Entry {sha: sha.to_string(), name: name.to_string()}))
         );
     }
 }
