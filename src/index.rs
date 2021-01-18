@@ -7,13 +7,15 @@
 
 use nom::bytes::complete::tag;
 use nom::number::complete::be_u32;
+use nom::number::complete::be_u16;
 use nom::sequence::tuple;
 use nom::take;
 use nom::named;
+
 use nom::do_parse;
 use nom::take_str;
 use nom::IResult;
-
+use std::convert::TryInto;
 use std::path::Path;
 
 /// An index of a repo.
@@ -41,7 +43,7 @@ struct Header {
 #[derive(PartialEq, Eq, Debug)]
 struct Entry {
     // The docs call this "object name"
-    sha: String,
+    sha: [u8; 20],
     name: String,
 }
 
@@ -93,10 +95,10 @@ impl Index {
         named!(entry<Entry> ,
             do_parse!(
                 take!(40) >>
-                sha: take_str!(20) >>
-                name_size: be_u32 >>
+                sha: take!(20) >>
+                name_size: be_u16 >>
                 name: take_str!(name_size) >>
-                (Entry{sha: sha.to_string(), name: name.to_string()})
+                (Entry{sha: sha.try_into().unwrap(), name: name.to_string()})
             )
         );
         entry(stream)
@@ -153,13 +155,28 @@ mod tests {
     #[test]
     fn test_read_of_file_entry() {
         let name = "some/file/name";
-        let sha= "a bad sha string";
+        let sha = b"abacadaba2376182368a";
         let mut stream: Vec<u8> = vec![];
-        let ctime_seconds: u32 = 30;
-        stream.extend(&ctime_seconds.to_be_bytes());
+        let ctime: u64 = 10;
+        stream.extend(&ctime.to_be_bytes());
+        let mtime: u64 = 20;
+        stream.extend(&mtime.to_be_bytes());
+        let dev: u32 = 30;
+        stream.extend(&dev.to_be_bytes());
+        let mode: u32 = 40;
+        stream.extend(&mode.to_be_bytes());
+        let uid: u32 = 50;
+        stream.extend(&uid.to_be_bytes());
+        let gid: u32 = 60;
+        stream.extend(&gid.to_be_bytes());
+        let file_size: u32 = 70;
+        stream.extend(&file_size.to_be_bytes());
+        stream.extend(sha);
+        let name_length: u16 = name.len() as u16;
+        stream.extend(&name_length.to_be_bytes());
         assert_eq!(
             Index::read_entry(&stream),
-            Ok((&b""[..], Entry {sha: sha.to_string(), name: name.to_string()}))
+            Ok((&b""[..], Entry {sha: *sha, name: name.to_string()}))
         );
     }
 }
