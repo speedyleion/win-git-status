@@ -84,9 +84,8 @@ impl Index {
         ];
         let mut buffer: Vec<u8> = Vec::new();
         File::open(&path).and_then(|mut f| f.read_to_end(&mut buffer))?;
-        let (taco, header) = Index::read_header(&buffer)?;
+        let (contents, header) = Index::read_header(&buffer)?;
         let mut entries = vec![];
-        let contents = taco;
         for _ in 0..header.entries {
             let (contents, entry) = Index::read_entry(&contents)?;
             entries.push(entry);
@@ -225,6 +224,24 @@ mod tests {
         assert_eq!(
             Index::read_entry(&stream),
             Ok((&b""[..], Entry {sha: *sha, name: String::from_utf8(name.to_vec()).unwrap()}))
+        );
+    }
+
+    #[test]
+    fn test_read_of_file_entry_leaves_remainder() {
+        let name= b"a/different/name/to/a/file/with.ext";
+        let sha = b"ab7ca9aba237a18e3f8a";
+        let mut stream: Vec<u8> = vec![0; 40];
+        stream.extend(sha);
+        let name_length: u16 = name.len() as u16;
+        stream.extend(&name_length.to_be_bytes());
+        stream.extend(name);
+        let suffix = b"what";
+        stream.extend(suffix);
+        let read = Index::read_entry(&stream);
+        assert_eq!(
+            read,
+            Ok((&suffix[..], Entry {sha: *sha, name: String::from_utf8(name.to_vec()).unwrap()}))
         );
     }
 }
