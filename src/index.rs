@@ -53,7 +53,7 @@ pub struct Index {
     path: String,
     oid: [u8; 20],
     header: Header,
-    entries: Vec<Entry>,
+    pub entries: Vec<Entry>,
 }
 
 #[derive(PartialEq, Eq, Debug)]
@@ -64,7 +64,7 @@ struct Header {
 
 /// Represents an index entry, i.e. a file or blob
 #[derive(PartialEq, Eq, Debug)]
-struct Entry {
+pub struct Entry {
     // The docs call this "object name"
     sha: [u8; 20],
     name: String,

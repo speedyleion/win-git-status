@@ -15,10 +15,10 @@ fn index_has_one_entry() {
     let temp = TempDir::default().permanent();
     let temp_path_str = temp.to_str().unwrap();
     common::test_repo(temp_path_str);
-    let repo = Repository::open(temp_path_str).unwrap();
-    let mut index = repo.index().unwrap();
+    let index_file = temp.join(".git/index");
+    let index = Index::new(&index_file).unwrap();
     assert_eq!(
-        index.write_tree().unwrap().as_bytes(),
-        Index::new(&temp).oid()
+        index.entries.len(),
+        1
     );
 }
