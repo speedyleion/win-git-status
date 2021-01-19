@@ -22,20 +22,19 @@ use std::io::Read;
 use std::io;
 
 #[derive(Debug)]
-pub enum GitStatusError<'a> {
-    IO(io::Error),
-    Nom(nom::Err<nom::error::Error<&'a[u8]>>),
+pub struct GitStatusError {
+    message: String,
 }
 
-impl <'a> From<io::Error> for GitStatusError <'a>{
-    fn from(err: io::Error) -> GitStatusError<'a> {
-        GitStatusError::IO(err)
+impl  From<io::Error> for GitStatusError {
+    fn from(err: io::Error) -> GitStatusError {
+        GitStatusError{message: err.to_string()}
     }
 }
 
-impl <'a> From<nom::Err<nom::error::Error<&'a[u8]>>> for GitStatusError<'a> {
-    fn from(err: nom::Err<nom::error::Error<&'a[u8]>>) -> GitStatusError<'a> {
-        GitStatusError::Nom(err)
+impl From<nom::Err<nom::error::Error<&[u8]>>> for GitStatusError {
+    fn from(err: nom::Err<nom::error::Error<&[u8]>>) -> GitStatusError {
+        GitStatusError{message: err.to_string()}
     }
 }
 
@@ -83,14 +82,13 @@ impl Index {
             75, 130, 93, 198, 66, 203, 110, 185, 160, 96, 229, 75, 248, 214, 146, 136, 251, 238,
             73, 4,
         ];
-        let mut file = File::open(path)?;
-        let metadata = file.metadata()?;
-        let mut buffer:Vec<u8> = vec![0; metadata.len() as usize];
-        file.read(&mut buffer)?;
-        let (contents, header) = Index::read_header(&buffer)?;
+        let mut buffer: Vec<u8> = Vec::new();
+        File::open(&path).and_then(|mut f| f.read_to_end(&mut buffer))?;
+        let (taco, header) = Index::read_header(&buffer)?;
         let mut entries = vec![];
+        let contents = taco;
         for _ in 0..header.entries {
-            let (contents, entry) = Index::read_entry(contents)?;
+            let (contents, entry) = Index::read_entry(&contents)?;
             entries.push(entry);
         }
         let index = Index {
