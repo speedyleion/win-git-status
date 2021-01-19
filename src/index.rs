@@ -84,9 +84,10 @@ impl Index {
             73, 4,
         ];
         let mut file = File::open(path)?;
-        let contents = &mut [];
-        file.read(contents)?;
-        let (contents, header) = Index::read_header(contents)?;
+        let metadata = file.metadata()?;
+        let mut buffer:Vec<u8> = vec![0; metadata.len() as usize];
+        file.read(&mut buffer)?;
+        let (contents, header) = Index::read_header(&buffer)?;
         let mut entries = vec![];
         for _ in 0..header.entries {
             let (contents, entry) = Index::read_entry(contents)?;
