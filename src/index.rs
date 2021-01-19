@@ -11,11 +11,33 @@ use nom::number::complete::be_u16;
 use nom::sequence::tuple;
 use nom::take;
 use nom::named;
+use nom;
 
 use nom::do_parse;
 use nom::IResult;
 use std::convert::TryInto;
 use std::path::Path;
+use std::fs::File;
+use std::io::Read;
+use std::io;
+
+#[derive(Debug)]
+pub enum GitStatusError<'a> {
+    IO(io::Error),
+    Nom(nom::Err<nom::error::Error<&'a[u8]>>),
+}
+
+impl <'a> From<io::Error> for GitStatusError <'a>{
+    fn from(err: io::Error) -> GitStatusError<'a> {
+        GitStatusError::IO(err)
+    }
+}
+
+impl <'a> From<nom::Err<nom::error::Error<&'a[u8]>>> for GitStatusError<'a> {
+    fn from(err: nom::Err<nom::error::Error<&'a[u8]>>) -> GitStatusError<'a> {
+        GitStatusError::Nom(err)
+    }
+}
 
 /// An index of a repo.
 /// Some refer to this as the cache or staging area.
@@ -27,9 +49,12 @@ use std::path::Path;
 ///
 /// - `oid` - Object ID.  This is often the SHA of an item.  It could be a commit, file blob, tree,
 ///     etc.
+#[derive(Debug)]
 pub struct Index {
     path: String,
     oid: [u8; 20],
+    header: Header,
+    entries: Vec<Entry>,
 }
 
 #[derive(PartialEq, Eq, Debug)]
@@ -53,18 +78,27 @@ impl Index {
     ///
     /// * `path` - The path to a git repo.  This logic will _not_ search up parent directories for
     ///     a git repo
-    pub fn new(path: &Path) -> Index {
+    pub fn new(path: &Path) -> Result<Index, GitStatusError> {
         let oid = [
             75, 130, 93, 198, 66, 203, 110, 185, 160, 96, 229, 75, 248, 214, 146, 136, 251, 238,
             73, 4,
         ];
+        let mut file = File::open(path)?;
+        let contents = &mut [];
+        file.read(contents)?;
+        let (contents, header) = Index::read_header(contents)?;
+        let mut entries = vec![];
+        for _ in 0..header.entries {
+            let (contents, entry) = Index::read_entry(contents)?;
+            entries.push(entry);
+        }
         let index = Index {
             path: String::from(path.to_str().unwrap()),
             oid,
+            header,
+            entries,
         };
-        //HACK quiet warning for now
-        assert!(index.path != "foo");
-        index
+        Ok(index)
     }
 
     /// Returns the oid(Object ID) for the index.
@@ -77,7 +111,6 @@ impl Index {
     /// Reads in the header from the provided stream
     ///
     ///
-    #[allow(dead_code)]
     fn read_header(stream: &[u8]) -> IResult<&[u8], Header> {
         let signature = tag("DIRC");
 
@@ -89,7 +122,6 @@ impl Index {
     /// Reads in entry from the provided stream
     ///
     ///
-    #[allow(dead_code)]
     fn read_entry(stream: &[u8]) -> IResult<&[u8], Entry> {
         named!(entry<Entry> ,
             do_parse!(
