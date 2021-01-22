@@ -213,6 +213,8 @@ mod tests {
         let name_length: u16 = name.len() as u16;
         stream.extend(&name_length.to_be_bytes());
         stream.extend(name);
+        let pad_length = 8 - ((62 + name_length) % 8);
+        stream.extend(vec![0; pad_length as usize]);
         assert_eq!(
             Index::read_entry(&stream),
             Ok((
@@ -234,6 +236,8 @@ mod tests {
         let name_length: u16 = name.len() as u16;
         stream.extend(&name_length.to_be_bytes());
         stream.extend(name);
+        let pad_length = 8 - ((62 + name_length) % 8);
+        stream.extend(vec![0; pad_length as usize]);
         assert_eq!(
             Index::read_entry(&stream),
             Ok((
@@ -255,7 +259,7 @@ mod tests {
         let name_length: u16 = name.len() as u16;
         stream.extend(&name_length.to_be_bytes());
         stream.extend(name);
-        let pad_length = 8 - (name_length % 8);
+        let pad_length = 8 - ((62 + name_length) % 8);
         stream.extend(vec![0; pad_length as usize]);
         let suffix = b"what";
         stream.extend(suffix);
@@ -274,7 +278,7 @@ mod tests {
 
     #[test]
     fn test_read_of_file_entry_leaves_remainder_when_no_pad_needed() {
-        let name = b"seven77";
+        let name = b"niners999";
         let sha = b"ab7ca9aba437ae8e3f8a";
         let mut stream: Vec<u8> = vec![0; 40];
         stream.extend(sha);
@@ -300,7 +304,7 @@ mod tests {
 
     #[test]
     fn test_read_of_file_entry_leaves_remainder_when_full_pad_needed() {
-        let name = b"eight888";
+        let name = b"22";
         let sha = b"ab7ca9aba437ae8e3f8a";
         let mut stream: Vec<u8> = vec![0; 40];
         stream.extend(sha);

@@ -5,7 +5,6 @@
  *          https://www.boost.org/LICENSE_1_0.txt)
  */
 extern crate win_git_status;
-use git2::Repository;
 use temp_testdir::TempDir;
 use win_git_status::Index;
 mod common;
