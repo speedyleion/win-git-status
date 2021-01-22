@@ -9,7 +9,7 @@ use nom::bytes::complete::tag;
 use nom::number::complete::be_u32;
 use nom::number::complete::be_u16;
 use nom::sequence::tuple;
-use nom::take;
+use nom::{take, dbg_dmp};
 use nom::named;
 use nom;
 
@@ -78,17 +78,15 @@ impl Index {
     /// * `path` - The path to a git repo.  This logic will _not_ search up parent directories for
     ///     a git repo
     pub fn new(path: &Path) -> Result<Index, GitStatusError> {
-        let oid = [
-            75, 130, 93, 198, 66, 203, 110, 185, 160, 96, 229, 75, 248, 214, 146, 136, 251, 238,
-            73, 4,
-        ];
+        let oid: [u8; 20] = [0; 20];
         let mut buffer: Vec<u8> = Vec::new();
         File::open(&path).and_then(|mut f| f.read_to_end(&mut buffer))?;
-        let (contents, header) = Index::read_header(&buffer)?;
+        let (mut contents, header) = Index::read_header(&buffer)?;
         let mut entries = vec![];
         for _ in 0..header.entries {
-            let (contents, entry) = Index::read_entry(&contents)?;
+            let (local_contents, entry) = Index::read_entry(&contents)?;
             entries.push(entry);
+            contents = local_contents;
         }
         let index = Index {
             path: String::from(path.to_str().unwrap()),
@@ -127,10 +125,11 @@ impl Index {
                 sha: take!(20) >>
                 name_size: be_u16 >>
                 name: take!(name_size) >>
+                take!(8-((62+name_size)%8)) >>
                 (Entry{sha: sha.try_into().unwrap(), name: String::from_utf8(name.to_vec()).unwrap()})
             )
         );
-        entry(stream)
+        dbg_dmp(entry, "foo")(stream)
     }
 }
 
@@ -229,14 +228,56 @@ mod tests {
 
     #[test]
     fn test_read_of_file_entry_leaves_remainder() {
-        let name= b"a/different/name/to/a/file/with.ext";
+        let name= b"a/file";
         let sha = b"ab7ca9aba237a18e3f8a";
         let mut stream: Vec<u8> = vec![0; 40];
         stream.extend(sha);
         let name_length: u16 = name.len() as u16;
         stream.extend(&name_length.to_be_bytes());
         stream.extend(name);
+        let pad_length = 8 - (name_length % 8);
+        stream.extend(vec![0; pad_length as usize]);
         let suffix = b"what";
+        stream.extend(suffix);
+        let read = Index::read_entry(&stream);
+        assert_eq!(
+            read,
+            Ok((&suffix[..], Entry {sha: *sha, name: String::from_utf8(name.to_vec()).unwrap()}))
+        );
+    }
+
+    #[test]
+    fn test_read_of_file_entry_leaves_remainder_when_no_pad_needed() {
+        let name= b"seven77";
+        let sha = b"ab7ca9aba437ae8e3f8a";
+        let mut stream: Vec<u8> = vec![0; 40];
+        stream.extend(sha);
+        let name_length: u16 = name.len() as u16;
+        stream.extend(&name_length.to_be_bytes());
+        stream.extend(name);
+        let pad_length = 1;
+        stream.extend(vec![0; pad_length as usize]);
+        let suffix = b"sure";
+        stream.extend(suffix);
+        let read = Index::read_entry(&stream);
+        assert_eq!(
+            read,
+            Ok((&suffix[..], Entry {sha: *sha, name: String::from_utf8(name.to_vec()).unwrap()}))
+        );
+    }
+
+    #[test]
+    fn test_read_of_file_entry_leaves_remainder_when_full_pad_needed() {
+        let name= b"eight888";
+        let sha = b"ab7ca9aba437ae8e3f8a";
+        let mut stream: Vec<u8> = vec![0; 40];
+        stream.extend(sha);
+        let name_length: u16 = name.len() as u16;
+        stream.extend(&name_length.to_be_bytes());
+        stream.extend(name);
+        let pad_length = 8;
+        stream.extend(vec![0; pad_length as usize]);
+        let suffix = b"Iknow";
         stream.extend(suffix);
         let read = Index::read_entry(&stream);
         assert_eq!(
