@@ -6,8 +6,8 @@
  */
 use git2::{Repository, Signature, Time};
 use std::fs::File;
-use std::path::Path;
 use std::io::Write;
+use std::path::Path;
 
 pub fn test_repo(path: &str) -> () {
     let repo = Repository::init(path).unwrap();

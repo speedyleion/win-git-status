@@ -5,36 +5,40 @@
  *          https://www.boost.org/LICENSE_1_0.txt)
  */
 
-use nom::bytes::complete::tag;
-use nom::number::complete::be_u32;
-use nom::number::complete::be_u16;
-use nom::sequence::tuple;
-use nom::{take, dbg_dmp};
-use nom::named;
 use nom;
+use nom::bytes::complete::tag;
+use nom::named;
+use nom::number::complete::be_u16;
+use nom::number::complete::be_u32;
+use nom::sequence::tuple;
+use nom::{dbg_dmp, take};
 
 use nom::do_parse;
 use nom::IResult;
 use std::convert::TryInto;
-use std::path::Path;
 use std::fs::File;
-use std::io::Read;
 use std::io;
+use std::io::Read;
+use std::path::Path;
 
 #[derive(Debug)]
 pub struct GitStatusError {
     message: String,
 }
 
-impl  From<io::Error> for GitStatusError {
+impl From<io::Error> for GitStatusError {
     fn from(err: io::Error) -> GitStatusError {
-        GitStatusError{message: err.to_string()}
+        GitStatusError {
+            message: err.to_string(),
+        }
     }
 }
 
 impl From<nom::Err<nom::error::Error<&[u8]>>> for GitStatusError {
     fn from(err: nom::Err<nom::error::Error<&[u8]>>) -> GitStatusError {
-        GitStatusError{message: err.to_string()}
+        GitStatusError {
+            message: err.to_string(),
+        }
     }
 }
 
@@ -119,14 +123,18 @@ impl Index {
     ///
     ///
     fn read_entry(stream: &[u8]) -> IResult<&[u8], Entry> {
-        named!(entry<Entry> ,
+        named!(
+            entry<Entry>,
             do_parse!(
-                take!(40) >>
-                sha: take!(20) >>
-                name_size: be_u16 >>
-                name: take!(name_size) >>
-                take!(8-((62+name_size)%8)) >>
-                (Entry{sha: sha.try_into().unwrap(), name: String::from_utf8(name.to_vec()).unwrap()})
+                take!(40)
+                    >> sha: take!(20)
+                    >> name_size: be_u16
+                    >> name: take!(name_size)
+                    >> take!(8 - ((62 + name_size) % 8))
+                    >> (Entry {
+                        sha: sha.try_into().unwrap(),
+                        name: String::from_utf8(name.to_vec()).unwrap()
+                    })
             )
         );
         dbg_dmp(entry, "foo")(stream)
@@ -182,7 +190,7 @@ mod tests {
 
     #[test]
     fn test_read_of_file_entry() {
-        let name= b"some/file/name";
+        let name = b"some/file/name";
         let sha = b"abacadaba2376182368a";
         let mut stream: Vec<u8> = vec![];
         let ctime: u64 = 10;
@@ -207,13 +215,19 @@ mod tests {
         stream.extend(name);
         assert_eq!(
             Index::read_entry(&stream),
-            Ok((&b""[..], Entry {sha: *sha, name: String::from_utf8(name.to_vec()).unwrap()}))
+            Ok((
+                &b""[..],
+                Entry {
+                    sha: *sha,
+                    name: String::from_utf8(name.to_vec()).unwrap()
+                }
+            ))
         );
     }
 
     #[test]
     fn test_read_entry_new_name_irrelevant_prefix() {
-        let name= b"a/different/name/to/a/file/with.ext";
+        let name = b"a/different/name/to/a/file/with.ext";
         let sha = b"ab7ca9aba237a18e3f8a";
         let mut stream: Vec<u8> = vec![0; 40];
         stream.extend(sha);
@@ -222,13 +236,19 @@ mod tests {
         stream.extend(name);
         assert_eq!(
             Index::read_entry(&stream),
-            Ok((&b""[..], Entry {sha: *sha, name: String::from_utf8(name.to_vec()).unwrap()}))
+            Ok((
+                &b""[..],
+                Entry {
+                    sha: *sha,
+                    name: String::from_utf8(name.to_vec()).unwrap()
+                }
+            ))
         );
     }
 
     #[test]
     fn test_read_of_file_entry_leaves_remainder() {
-        let name= b"a/file";
+        let name = b"a/file";
         let sha = b"ab7ca9aba237a18e3f8a";
         let mut stream: Vec<u8> = vec![0; 40];
         stream.extend(sha);
@@ -242,13 +262,19 @@ mod tests {
         let read = Index::read_entry(&stream);
         assert_eq!(
             read,
-            Ok((&suffix[..], Entry {sha: *sha, name: String::from_utf8(name.to_vec()).unwrap()}))
+            Ok((
+                &suffix[..],
+                Entry {
+                    sha: *sha,
+                    name: String::from_utf8(name.to_vec()).unwrap()
+                }
+            ))
         );
     }
 
     #[test]
     fn test_read_of_file_entry_leaves_remainder_when_no_pad_needed() {
-        let name= b"seven77";
+        let name = b"seven77";
         let sha = b"ab7ca9aba437ae8e3f8a";
         let mut stream: Vec<u8> = vec![0; 40];
         stream.extend(sha);
@@ -262,13 +288,19 @@ mod tests {
         let read = Index::read_entry(&stream);
         assert_eq!(
             read,
-            Ok((&suffix[..], Entry {sha: *sha, name: String::from_utf8(name.to_vec()).unwrap()}))
+            Ok((
+                &suffix[..],
+                Entry {
+                    sha: *sha,
+                    name: String::from_utf8(name.to_vec()).unwrap()
+                }
+            ))
         );
     }
 
     #[test]
     fn test_read_of_file_entry_leaves_remainder_when_full_pad_needed() {
-        let name= b"eight888";
+        let name = b"eight888";
         let sha = b"ab7ca9aba437ae8e3f8a";
         let mut stream: Vec<u8> = vec![0; 40];
         stream.extend(sha);
@@ -282,7 +314,13 @@ mod tests {
         let read = Index::read_entry(&stream);
         assert_eq!(
             read,
-            Ok((&suffix[..], Entry {sha: *sha, name: String::from_utf8(name.to_vec()).unwrap()}))
+            Ok((
+                &suffix[..],
+                Entry {
+                    sha: *sha,
+                    name: String::from_utf8(name.to_vec()).unwrap()
+                }
+            ))
         );
     }
 }

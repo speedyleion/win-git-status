@@ -17,8 +17,5 @@ fn index_has_one_entry() {
     common::test_repo(temp_path_str);
     let index_file = temp.join(".git/index");
     let index = Index::new(&index_file).unwrap();
-    assert_eq!(
-        index.entries.len(),
-        1
-    );
+    assert_eq!(index.entries.len(), 1);
 }
