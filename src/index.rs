@@ -5,7 +5,6 @@
  *          https://www.boost.org/LICENSE_1_0.txt)
  */
 
-use nom;
 use nom::bytes::complete::tag;
 use nom::named;
 use nom::number::complete::be_u16;
