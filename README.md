@@ -37,5 +37,23 @@ These packages are not being utilized in the implementation for two main reasons
 [git2-rs](https://github.com/rust-lang/git2-rs) is being used in the test verification.  This was
 chosen with previous exposer to the `libgit2` api.
 
-Since I chose to also take this opportunity to learn Rust, it means that the status on this will most
-likely be slow as I spin up on all the nuances of Rust.
+## Status
+>Note: Since I chose to also take this opportunity to learn Rust, it means that
+> the status on this will most likely be slow as I spin up on all the nuances 
+> of Rust.
+
+Currently ``win-git-status.exe`` will produce the debug output of reading a git
+index file.  For example one could do:
+
+    win-git-status.exe .git/index
+
+This would show the contents of the repo's index file.  This should be similar to:
+
+    git ls-files --stage
+    
+### Performance
+Initial timings, on this repo's index file, look promising, but 
+``win-git-status`` probably isn't doing as much:
+
+- 0.090s for ``git ls-files --stage``
+- 0.060s for ``win-git-status.exe .git/index``
