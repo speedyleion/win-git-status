@@ -5,4 +5,7 @@
  *          https://www.boost.org/LICENSE_1_0.txt)
  */
 mod index;
+mod worktree;
+
 pub use index::Index;
+pub use worktree::WorkTree;

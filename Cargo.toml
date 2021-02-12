@@ -8,6 +8,7 @@ edition = "2018"
 
 [dependencies]
 nom = "6.0.1"
+ignore = "0.4"
 
 [dev-dependencies]
 git2 = "0.13"
