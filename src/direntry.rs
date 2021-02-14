@@ -7,6 +7,7 @@
 
 use std::path::Path;
 use std::fs;
+use sha1::{Sha1, Digest};
 
 #[derive(Debug)]
 pub struct DirEntryError {
@@ -30,7 +31,13 @@ impl DirEntry {
     /// * `name` - The name of the entry, relative to `root`.
     pub fn from_path(_root: &Path, name: &Path) -> Result<DirEntry, DirEntryError> {
         let string_name = name.to_str().ok_or_else(|| DirEntryError{message: "Failure to get string of file path".to_string()})?.to_string();
-        Ok(DirEntry{sha: *b"00000000000000000000", name: string_name})
+        Ok(DirEntry{sha: DirEntry::hash_file(name)?, name: string_name})
+    }
+
+    fn hash_file(_file: &Path) -> Result<[u8; 20], DirEntryError> {
+        let result = Sha1::digest(b"what\nis\nit");
+        let hash: [u8; 20] = result.into();
+        Ok(hash)
     }
 }
 
@@ -50,6 +57,33 @@ mod tests {
 
         let entry = DirEntry::from_path(&temp_dir, Path::new(entry_name)).unwrap();
         assert_eq!(entry, DirEntry{sha: *b"00000000000000000000", name: entry_name.to_string()});
+
+    }
+
+    #[test]
+    fn test_hash_file_removes_carriage_returns() {
+        let temp_dir = TempDir::default();
+        let file_contents = "what\r\nis\r\nit";
+        let file = temp_dir.join("my_hash_file.txt");
+        fs::write(file.clone(), file_contents).unwrap();
+
+        let actual = DirEntry::hash_file(&file).unwrap();
+        // let expected: [u8; 20] = Sha1::digest(file_contents.as_bytes()).into();
+        let expected: [u8; 20] = Sha1::digest("what\nis\nit".as_bytes()).into();
+        assert_eq!(actual, expected);
+
+    }
+
+    #[test]
+    fn test_hash_file_leaves_newlines_alone() {
+        let temp_dir = TempDir::default();
+        let file_contents = "some\nother\nstring\ncontents";
+        let file = temp_dir.join("some_other_file.txt");
+        fs::write(file.clone(), file_contents).unwrap();
+
+        let actual = DirEntry::hash_file(&file).unwrap();
+        let expected: [u8; 20] = Sha1::digest(file_contents.as_bytes()).into();
+        assert_eq!(actual, expected);
 
     }
 }

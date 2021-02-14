@@ -10,6 +10,7 @@ edition = "2018"
 nom = "6.0.1"
 #ignore = "0.4"
 jwalk = "0.6"
+sha-1 = "0.9"
 
 [dev-dependencies]
 git2 = "0.13"
