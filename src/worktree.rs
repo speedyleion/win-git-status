@@ -7,6 +7,7 @@
 
 use jwalk::WalkDir;
 use std::path::Path;
+use crate::DirEntry;
 
 #[derive(Debug)]
 pub struct WorkTreeError {
@@ -28,15 +29,7 @@ impl From<jwalk::Error> for WorkTreeError {
 #[derive(Debug)]
 pub struct WorkTree {
     path: String,
-    pub entries: Vec<Entry>,
-}
-
-/// Represents an index entry, i.e. a file or blob
-#[derive(PartialEq, Eq, Debug)]
-pub struct Entry {
-    // The docs call this "object name"
-    sha: [u8; 20],
-    name: String,
+    pub entries: Vec<DirEntry>,
 }
 
 impl WorkTree {
@@ -49,7 +42,7 @@ impl WorkTree {
     pub fn new(path: &Path) -> Result<WorkTree, WorkTreeError> {
         let mut entries = vec![];
         for entry in WalkDir::new(path).skip_hidden(false) {
-            entries.push(Entry {sha: *b"00000000000000000000", name: entry?.path().to_str().ok_or(WorkTreeError{message: "FAIL WHALE".to_string()})?.to_string()});
+            entries.push(DirEntry {sha: *b"00000000000000000000", name: entry?.path().to_str().ok_or(WorkTreeError{message: "FAIL WHALE".to_string()})?.to_string()});
             // println!("{}", entry?.path().display());
         }
         let work_tree = WorkTree {
