@@ -20,6 +20,8 @@ use std::io;
 use std::io::Read;
 use std::path::Path;
 
+use crate::DirEntry;
+
 #[derive(Debug)]
 pub struct GitStatusError {
     message: String,
@@ -56,21 +58,13 @@ pub struct Index {
     path: String,
     oid: [u8; 20],
     header: Header,
-    pub entries: Vec<Entry>,
+    pub entries: Vec<DirEntry>,
 }
 
 #[derive(PartialEq, Eq, Debug)]
 struct Header {
     version: u32,
     entries: u32,
-}
-
-/// Represents an index entry, i.e. a file or blob
-#[derive(PartialEq, Eq, Debug)]
-pub struct Entry {
-    // The docs call this "object name"
-    sha: [u8; 20],
-    name: String,
 }
 
 impl Index {
@@ -121,16 +115,16 @@ impl Index {
     /// Reads in entry from the provided stream
     ///
     ///
-    fn read_entry(stream: &[u8]) -> IResult<&[u8], Entry> {
+    fn read_entry(stream: &[u8]) -> IResult<&[u8], DirEntry> {
         named!(
-            entry<Entry>,
+            entry<DirEntry>,
             do_parse!(
                 take!(40)
                     >> sha: take!(20)
                     >> name_size: be_u16
                     >> name: take!(name_size)
                     >> take!(8 - ((62 + name_size) % 8))
-                    >> (Entry {
+                    >> (DirEntry {
                         sha: sha.try_into().unwrap(),
                         name: String::from_utf8(name.to_vec()).unwrap()
                     })
@@ -218,7 +212,7 @@ mod tests {
             Index::read_entry(&stream),
             Ok((
                 &b""[..],
-                Entry {
+                DirEntry {
                     sha: *sha,
                     name: String::from_utf8(name.to_vec()).unwrap()
                 }
@@ -241,7 +235,7 @@ mod tests {
             Index::read_entry(&stream),
             Ok((
                 &b""[..],
-                Entry {
+                DirEntry {
                     sha: *sha,
                     name: String::from_utf8(name.to_vec()).unwrap()
                 }
@@ -267,7 +261,7 @@ mod tests {
             read,
             Ok((
                 &suffix[..],
-                Entry {
+                DirEntry {
                     sha: *sha,
                     name: String::from_utf8(name.to_vec()).unwrap()
                 }
@@ -293,7 +287,7 @@ mod tests {
             read,
             Ok((
                 &suffix[..],
-                Entry {
+                DirEntry {
                     sha: *sha,
                     name: String::from_utf8(name.to_vec()).unwrap()
                 }
@@ -319,7 +313,7 @@ mod tests {
             read,
             Ok((
                 &suffix[..],
-                Entry {
+                DirEntry {
                     sha: *sha,
                     name: String::from_utf8(name.to_vec()).unwrap()
                 }
