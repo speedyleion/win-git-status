@@ -38,6 +38,9 @@ These packages are not being utilized in the implementation for two main reasons
 chosen with previous exposer to the `libgit2` api.
 
 ## Status
+I've been trying to blog a bit about the development process at
+https://speedyleion.github.io/.  This would probably give a better idea of the design progress, since the functional progress is taking a bit.
+
 >Note: Since I chose to also take this opportunity to learn Rust, it means that
 > the status on this will most likely be slow as I spin up on all the nuances 
 > of Rust.
