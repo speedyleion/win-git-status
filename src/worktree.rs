@@ -42,7 +42,7 @@ impl WorkTree {
     pub fn new(path: &Path) -> Result<WorkTree, WorkTreeError> {
         let mut entries = vec![];
         for entry in WalkDir::new(path).skip_hidden(false) {
-            entries.push(DirEntry {sha: *b"00000000000000000000", name: entry?.path().to_str().ok_or(WorkTreeError{message: "FAIL WHALE".to_string()})?.to_string()});
+            entries.push(DirEntry {mtime: 0, size: 0, sha: *b"00000000000000000000", name: entry?.path().to_str().ok_or(WorkTreeError{message: "FAIL WHALE".to_string()})?.to_string()});
             // println!("{}", entry?.path().display());
         }
         let work_tree = WorkTree {

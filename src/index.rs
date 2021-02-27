@@ -119,12 +119,17 @@ impl Index {
         named!(
             entry<DirEntry>,
             do_parse!(
-                take!(40)
+                take!(8)
+                    >> mtime: be_u32
+                    >> take!(24)
+                    >> size: be_u32
                     >> sha: take!(20)
                     >> name_size: be_u16
                     >> name: take!(name_size)
                     >> take!(8 - ((62 + name_size) % 8))
                     >> (DirEntry {
+                        mtime: mtime,
+                        size: size,
                         sha: sha.try_into().unwrap(),
                         name: String::from_utf8(name.to_vec()).unwrap()
                     })
@@ -188,8 +193,10 @@ mod tests {
         let mut stream: Vec<u8> = vec![];
         let ctime: u64 = 10;
         stream.extend(&ctime.to_be_bytes());
-        let mtime: u64 = 20;
-        stream.extend(&mtime.to_be_bytes());
+        let mtime_s: u32 = 20;
+        stream.extend(&mtime_s.to_be_bytes());
+        let mtime_ns: u32 = 25;
+        stream.extend(&mtime_ns.to_be_bytes());
         let dev: u32 = 30;
         stream.extend(&dev.to_be_bytes());
         let ino: u32 = 30;
@@ -213,6 +220,8 @@ mod tests {
             Ok((
                 &b""[..],
                 DirEntry {
+                    mtime: 20,
+                    size: 70,
                     sha: *sha,
                     name: String::from_utf8(name.to_vec()).unwrap()
                 }
@@ -236,6 +245,8 @@ mod tests {
             Ok((
                 &b""[..],
                 DirEntry {
+                    mtime: 0,
+                    size: 0,
                     sha: *sha,
                     name: String::from_utf8(name.to_vec()).unwrap()
                 }
@@ -262,6 +273,8 @@ mod tests {
             Ok((
                 &suffix[..],
                 DirEntry {
+                    mtime: 0,
+                    size: 0,
                     sha: *sha,
                     name: String::from_utf8(name.to_vec()).unwrap()
                 }
@@ -288,6 +301,8 @@ mod tests {
             Ok((
                 &suffix[..],
                 DirEntry {
+                    mtime: 0,
+                    size: 0,
                     sha: *sha,
                     name: String::from_utf8(name.to_vec()).unwrap()
                 }
@@ -314,6 +329,8 @@ mod tests {
             Ok((
                 &suffix[..],
                 DirEntry {
+                    mtime: 0,
+                    size: 0,
                     sha: *sha,
                     name: String::from_utf8(name.to_vec()).unwrap()
                 }
