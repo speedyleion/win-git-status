@@ -21,6 +21,7 @@ use std::io::Read;
 use std::path::Path;
 
 use crate::DirEntry;
+use std::sync::{Mutex, Arc};
 
 #[derive(Debug)]
 pub struct GitStatusError {
@@ -53,15 +54,15 @@ impl From<nom::Err<nom::error::Error<&[u8]>>> for GitStatusError {
 ///
 /// - `oid` - Object ID.  This is often the SHA of an item.  It could be a commit, file blob, tree,
 ///     etc.
-#[derive(Debug)]
+#[derive(Debug, Default, Clone)]
 pub struct Index {
     path: String,
     oid: [u8; 20],
     header: Header,
-    pub entries: Vec<DirEntry>,
+    pub entries: Arc<Mutex<Vec<DirEntry>>>,
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Default, Clone)]
 struct Header {
     version: u32,
     entries: u32,
@@ -89,7 +90,7 @@ impl Index {
             path: String::from(path.to_str().unwrap()),
             oid,
             header,
-            entries,
+            entries: Arc::new(Mutex::new(entries)),
         };
         Ok(index)
     }

@@ -5,9 +5,33 @@
  *          https://www.boost.org/LICENSE_1_0.txt)
  */
 
-use jwalk::WalkDir;
+use std::cmp::Ordering;
+use jwalk::{WalkDir, WalkDirGeneric};
 use std::path::Path;
 use crate::DirEntry;
+use crate::Index;
+
+#[derive(Debug)]
+enum Status {
+    CURRENT,
+    NEW,
+    MODIFIED,
+    DELETED
+}
+
+impl Default for Status {
+    fn default() -> Self { Status::MODIFIED }
+}
+
+#[derive(Debug, Default)]
+pub struct StatusState {
+    state: Status,
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct WorkTreeState {
+    index: Index,
+}
 
 #[derive(Debug)]
 pub struct WorkTreeError {
@@ -51,5 +75,38 @@ impl WorkTree {
             // entries
         };
         Ok(work_tree)
+    }
+
+    /// Compares an index to the on disk work tree.
+    ///
+    /// # Argumenst
+    /// * `path` - The path to a git repo.  This logic will _not_ search up parent directories for
+    ///     a git repo
+    /// * `index` - The index to compare against
+    pub fn diff_against_index(path: &Path, index: &Index) -> Result<WorkTree, WorkTreeError> {
+        let walk_dir = WalkDirGeneric::<((WorkTreeState),(StatusState))>::new(path)
+            .process_read_dir(|depth, path, read_dir_state, children| {
+                // Sort to make it easier to compare the index and working tree for new versus deleted files.
+                children.sort_by(|a, b| match (a, b) {
+                    (Ok(a), Ok(b)) => a.file_name.cmp(&b.file_name),
+                    (Ok(_), Err(_)) => Ordering::Less,
+                    (Err(_), Ok(_)) => Ordering::Greater,
+                    (Err(_), Err(_)) => Ordering::Equal,
+                });
+
+                children.first_mut().map(|dir_entry_result| {
+                    if let Ok(dir_entry) = dir_entry_result {
+                        dir_entry.client_state.state = Status::MODIFIED;
+                    }
+                });
+                print!("{:?}", children);
+            });
+        let work_tree = WorkTree {
+            path: String::from(path.to_str().unwrap()),
+            entries: vec![]
+            // entries
+        };
+        Ok(work_tree)
+
     }
 }

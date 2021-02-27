@@ -2,6 +2,9 @@ use std::env;
 use std::path::Path;
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let worktree = win_git_status::WorkTree::new(Path::new(&args[1])).unwrap();
+    let path = Path::new(&args[1]);
+    let index_file = path.join(".git/index");
+    let index = win_git_status::Index::new(&*index_file).unwrap();
+    let worktree = win_git_status::WorkTree::diff_against_index(path, &index);
     println!("{:?}", worktree);
 }
