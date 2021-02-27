@@ -84,23 +84,21 @@ impl WorkTree {
     ///     a git repo
     /// * `index` - The index to compare against
     pub fn diff_against_index(path: &Path, index: &Index) -> Result<WorkTree, WorkTreeError> {
-        let walk_dir = WalkDirGeneric::<((WorkTreeState),(StatusState))>::new(path)
+        let walk_dir = WalkDirGeneric::<((WorkTreeState),(StatusState))>::new(path).skip_hidden(false).sort(true)
             .process_read_dir(|depth, path, read_dir_state, children| {
-                // Sort to make it easier to compare the index and working tree for new versus deleted files.
-                children.sort_by(|a, b| match (a, b) {
-                    (Ok(a), Ok(b)) => a.file_name.cmp(&b.file_name),
-                    (Ok(_), Err(_)) => Ordering::Less,
-                    (Err(_), Ok(_)) => Ordering::Greater,
-                    (Err(_), Err(_)) => Ordering::Equal,
-                });
-
                 children.first_mut().map(|dir_entry_result| {
                     if let Ok(dir_entry) = dir_entry_result {
                         dir_entry.client_state.state = Status::MODIFIED;
                     }
                 });
-                print!("{:?}", children);
+                print!("Toasty");
+                println!("{:?}", children);
             });
+        let mut entries = vec![];
+        for entry in walk_dir {
+            entries.push(DirEntry {mtime: 0, size: 0, sha: *b"00000000000000000000", name: entry?.path().to_str().ok_or(WorkTreeError{message: "FAIL WHALE".to_string()})?.to_string()});
+            // println!("{}", entry?.path().display());
+        }
         let work_tree = WorkTree {
             path: String::from(path.to_str().unwrap()),
             entries: vec![]
