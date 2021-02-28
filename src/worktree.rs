@@ -59,26 +59,6 @@ pub struct WorkTree {
 }
 
 impl WorkTree {
-    /// Returns the index for the git repo at `path`.
-    ///
-    /// # Arguments
-    ///
-    /// * `path` - The path to a git repo.  This logic will _not_ search up parent directories for
-    ///     a git repo
-    pub fn new(path: &Path) -> Result<WorkTree, WorkTreeError> {
-        let mut entries = vec![];
-        for entry in WalkDir::new(path).skip_hidden(false) {
-            entries.push(DirEntry {mtime: 0, size: 0, sha: *b"00000000000000000000", name: entry?.path().to_str().ok_or(WorkTreeError{message: "FAIL WHALE".to_string()})?.to_string()});
-            // println!("{}", entry?.path().display());
-        }
-        let work_tree = WorkTree {
-            path: String::from(path.to_str().unwrap()),
-            entries: vec![]
-            // entries
-        };
-        Ok(work_tree)
-    }
-
     /// Compares an index to the on disk work tree.
     ///
     /// # Argumenst
@@ -90,8 +70,7 @@ impl WorkTree {
             .process_read_dir(process_directory);
         let mut entries = vec![];
         for entry in walk_dir {
-            entries.push(DirEntry {mtime: 0, size: 0, sha: *b"00000000000000000000", name: entry?.path().to_str().ok_or(WorkTreeError{message: "FAIL WHALE".to_string()})?.to_string()});
-            // println!("{}", entry?.path().display());
+            entries.push(DirEntry {mtime: 0, size: 0, name: entry?.path().to_str().ok_or(WorkTreeError{message: "FAIL WHALE".to_string()})?.to_string(), ..Default::default()});
         }
         let work_tree = WorkTree {
             path: String::from(path.to_str().unwrap()),
@@ -124,8 +103,26 @@ fn process_directory(depth: Option<usize>, path: &Path, read_dir_state: &mut Ind
             dir_entry.client_state.state = Status::MODIFIED;
         }
     });
-    println!("depth = {:?}", depth);
-    println!("path = {:?}", path);
-    println!("children = {:?}", children);
-
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use temp_testdir::TempDir;
+    use std::fs;
+
+    #[test]
+    fn test_diff_against_index() {
+        let temp_dir = TempDir::default();
+        let file_contents = "what\r\nis\r\nit";
+        let entry_name = "simple_file.txt";
+        let file = temp_dir.join(entry_name);
+        fs::create_dir_all(file.parent().unwrap()).unwrap();
+        fs::write(file, file_contents).unwrap();
+        let index =  Index::default();
+        let value = WorkTree::diff_against_index(&*temp_dir, &index).unwrap();
+        assert_eq!(value.entries.len(), 1);
+
+    }
+}
+

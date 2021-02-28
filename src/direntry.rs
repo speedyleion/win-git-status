@@ -6,7 +6,7 @@
  */
 
 /// Represents an git entry in the index or working tree i.e. a file or blob
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Default)]
 pub struct DirEntry {
     // The docs call this "object name"
     pub mtime: u32,
