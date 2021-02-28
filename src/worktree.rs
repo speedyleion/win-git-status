@@ -29,7 +29,7 @@ pub struct StatusState {
 }
 
 #[derive(Debug, Default, Clone)]
-pub struct WorkTreeState {
+pub struct IndexState {
     index: Index,
 }
 
@@ -84,16 +84,8 @@ impl WorkTree {
     ///     a git repo
     /// * `index` - The index to compare against
     pub fn diff_against_index(path: &Path, index: &Index) -> Result<WorkTree, WorkTreeError> {
-        let walk_dir = WalkDirGeneric::<((WorkTreeState),(StatusState))>::new(path).skip_hidden(false).sort(true)
-            .process_read_dir(|depth, path, read_dir_state, children| {
-                children.first_mut().map(|dir_entry_result| {
-                    if let Ok(dir_entry) = dir_entry_result {
-                        dir_entry.client_state.state = Status::MODIFIED;
-                    }
-                });
-                print!("Toasty");
-                println!("{:?}", children);
-            });
+        let walk_dir = WalkDirGeneric::<((IndexState),(StatusState))>::new(path).skip_hidden(false).sort(true)
+            .process_read_dir(process_directory);
         let mut entries = vec![];
         for entry in walk_dir {
             entries.push(DirEntry {mtime: 0, size: 0, sha: *b"00000000000000000000", name: entry?.path().to_str().ok_or(WorkTreeError{message: "FAIL WHALE".to_string()})?.to_string()});
@@ -107,4 +99,15 @@ impl WorkTree {
         Ok(work_tree)
 
     }
+}
+
+fn process_directory(depth: Option<usize>, path: &Path, read_dir_state: &mut IndexState, children: &mut Vec<Result<jwalk::DirEntry<((IndexState),(StatusState))>, jwalk::Error>>){
+    children.first_mut().map(|dir_entry_result| {
+        if let Ok(dir_entry) = dir_entry_result {
+            dir_entry.client_state.state = Status::MODIFIED;
+        }
+    });
+    print!("Toasty");
+    println!("{:?}", children);
+
 }
