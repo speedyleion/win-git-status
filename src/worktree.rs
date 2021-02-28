@@ -86,7 +86,6 @@ impl WorkTree {
     ///     a git repo
     /// * `index` - The index to compare against
     pub fn diff_against_index(path: &Path, index: &Index) -> Result<WorkTree, WorkTreeError> {
-        println!("Root{:?}", path.to_str());
         let walk_dir = WalkDirGeneric::<((IndexState),(StatusState))>::new(path).skip_hidden(false).sort(true)
             .process_read_dir(process_directory);
         let mut entries = vec![];
@@ -96,7 +95,7 @@ impl WorkTree {
         }
         let work_tree = WorkTree {
             path: String::from(path.to_str().unwrap()),
-            entries: vec![]
+            entries: entries
             // entries
         };
         Ok(work_tree)
@@ -105,6 +104,21 @@ impl WorkTree {
 }
 
 fn process_directory(depth: Option<usize>, path: &Path, read_dir_state: &mut IndexState, children: &mut Vec<Result<jwalk::DirEntry<((IndexState),(StatusState))>, jwalk::Error>>){
+    // jwalk will use None for depth on the parent of the root path, not sure why...
+    let depth = match depth {
+        Some(depth) => depth,
+        None => return,
+    };
+
+    // Skip '.git' directory
+    children.retain(|dir_entry_result| {
+        dir_entry_result.as_ref().map(|dir_entry| {
+            dir_entry.file_name
+                .to_str()
+                .map(|s| s != ".git")
+                .unwrap_or(false)
+        }).unwrap_or(false)
+    });
     children.first_mut().map(|dir_entry_result| {
         if let Ok(dir_entry) = dir_entry_result {
             dir_entry.client_state.state = Status::MODIFIED;
