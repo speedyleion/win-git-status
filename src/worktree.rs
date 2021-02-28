@@ -8,6 +8,8 @@
 use std::cmp::Ordering;
 use jwalk::{WalkDir, WalkDirGeneric};
 use std::path::Path;
+use std::sync::{Mutex, Arc};
+
 use crate::DirEntry;
 use crate::Index;
 
@@ -30,7 +32,7 @@ pub struct StatusState {
 
 #[derive(Debug, Default, Clone)]
 pub struct IndexState {
-    index: Index,
+    index: Arc<Mutex<Index>>,
 }
 
 #[derive(Debug)]
@@ -84,6 +86,7 @@ impl WorkTree {
     ///     a git repo
     /// * `index` - The index to compare against
     pub fn diff_against_index(path: &Path, index: &Index) -> Result<WorkTree, WorkTreeError> {
+        println!("Root{:?}", path.to_str());
         let walk_dir = WalkDirGeneric::<((IndexState),(StatusState))>::new(path).skip_hidden(false).sort(true)
             .process_read_dir(process_directory);
         let mut entries = vec![];
@@ -107,7 +110,8 @@ fn process_directory(depth: Option<usize>, path: &Path, read_dir_state: &mut Ind
             dir_entry.client_state.state = Status::MODIFIED;
         }
     });
-    print!("Toasty");
-    println!("{:?}", children);
+    println!("depth = {:?}", depth);
+    println!("path = {:?}", path);
+    println!("children = {:?}", children);
 
 }
