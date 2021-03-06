@@ -30,7 +30,6 @@ fn index_has_three_entries_in_order() {
     common::test_repo(temp_path_str, files);
     let index_file = temp.join(".git/index");
     let index = Index::new(&index_file).unwrap();
-    assert_eq!(index.entries.len(), 3);
 
     let index_names: Vec<&String> = index.entries.iter().map(|e| &e.name).collect();
     names.sort();
@@ -46,7 +45,6 @@ fn index_has_nested_entries_in_oder() {
     common::test_repo(temp_path_str, files);
     let index_file = temp.join(".git/index");
     let index = Index::new(&index_file).unwrap();
-    assert_eq!(index.entries.len(), 3);
 
     let index_names: Vec<&String> = index.entries.iter().map(|e| &e.name).collect();
     names.sort();
