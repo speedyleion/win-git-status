@@ -16,10 +16,10 @@ use std::time::SystemTime;
 
 #[derive(Debug)]
 enum Status {
-    CURRENT,
-    NEW,
+    // CURRENT,
+    // NEW,
     MODIFIED,
-    DELETED
+    // DELETED
 }
 
 impl Default for Status {
@@ -125,14 +125,44 @@ mod tests {
     use std::time::SystemTime;
 
     #[test]
-    fn test_diff_against_index() {
+    fn test_diff_against_index_nothing_modified() {
         let temp_dir = TempDir::default();
         let file_contents = "what\r\nis\r\nit";
         let entry_name = "simple_file.txt";
         let file = temp_dir.join(entry_name);
         fs::create_dir_all(file.parent().unwrap()).unwrap();
         fs::write(&file, file_contents).unwrap();
-        let index =  Index::default();
+        let mut index =  Index::default();
+        let metadata = fs::metadata(&file).unwrap();
+        index.entries.push(
+            DirEntry{
+                mtime: metadata.modified().unwrap().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs() as u32,
+                size: metadata.len() as u32,
+                sha: [0; 20],
+                name: file.file_name().unwrap().to_str().unwrap().to_string(),
+            }
+        );
+        let value = WorkTree::diff_against_index(&*temp_dir, &index).unwrap();
+        assert_eq!(value.entries, vec![]);
+    }
+
+    fn test_diff_against_index_a_file_modified() {
+        let temp_dir = TempDir::default();
+        let file_contents = "what\r\nis\r\nit";
+        let entry_name = "simple_file.txt";
+        let file = temp_dir.join(entry_name);
+        fs::create_dir_all(file.parent().unwrap()).unwrap();
+        fs::write(&file, file_contents).unwrap();
+        let mut index =  Index::default();
+        let metadata = fs::metadata(&file).unwrap();
+        index.entries.push(
+            DirEntry{
+                mtime: metadata.modified().unwrap().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs() as u32,
+                size: metadata.len() as u32,
+                sha: [0; 20],
+                name: file.file_name().unwrap().to_str().unwrap().to_string(),
+            }
+        );
         let value = WorkTree::diff_against_index(&*temp_dir, &index).unwrap();
         let entries = vec![DirEntry{name: file.to_str().unwrap().to_string(), size: file_contents.len() as u32, mtime: fs::metadata(&file).unwrap().modified().unwrap().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs() as u32, ..Default::default()}];
         assert_eq!(value.entries, entries);
