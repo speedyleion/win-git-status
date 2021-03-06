@@ -9,7 +9,6 @@ use jwalk::WalkDirGeneric;
 use std::path::Path;
 use std::sync::Arc;
 
-use crate::DirEntry;
 use crate::Index;
 use std::time::SystemTime;
 
@@ -95,7 +94,7 @@ impl WorkTree {
     }
 }
 
-fn process_directory(depth: Option<usize>, path: &Path, read_dir_state: &mut IndexState, children: &mut Vec<Result<jwalk::DirEntry<(IndexState, WorkTreeEntry)>, jwalk::Error>>){
+fn process_directory(depth: Option<usize>, _path: &Path, read_dir_state: &mut IndexState, children: &mut Vec<Result<jwalk::DirEntry<(IndexState, WorkTreeEntry)>, jwalk::Error>>){
     // jwalk will use None for depth on the parent of the root path, not sure why...
     let _depth = match depth {
         Some(depth) => depth,
@@ -132,48 +131,48 @@ mod tests {
     use temp_testdir::TempDir;
     use std::fs;
     use std::time::SystemTime;
+    use crate::DirEntry;
+
+    // Test helper function to build up a temporary directory of `files`.  All files will have the
+    // same contents `what\r\nis\r\nit`.  The `Index` will be populated with the values as the files
+    // currently are on disk.  Callers can modify the returned `Index` to create differences or
+    // create and delete files from the returned `TempDir`.
+    fn temp_tree(files: Vec<&Path>) -> (Index, TempDir) {
+        let temp_dir = TempDir::default();
+        let mut index =  Index::default();
+
+        let file_contents = "what\r\nis\r\nit";
+        for file in files {
+            let full_path = temp_dir.join(file);
+
+            // Done this way to support nested files
+            fs::create_dir_all(full_path.parent().unwrap()).unwrap();
+            fs::write(&full_path, file_contents).unwrap();
+            let metadata = fs::metadata(&full_path).unwrap();
+            index.entries.push(
+                DirEntry{
+                    mtime: metadata.modified().unwrap().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs() as u32,
+                    size: metadata.len() as u32,
+                    sha: [0; 20],
+                    name: file.to_str().unwrap().to_string(),
+                }
+            );
+        }
+        (index, temp_dir)
+    }
 
     #[test]
     fn test_diff_against_index_nothing_modified() {
-        let temp_dir = TempDir::default();
-        let file_contents = "what\r\nis\r\nit";
-        let entry_name = "simple_file.txt";
-        let file = temp_dir.join(entry_name);
-        fs::create_dir_all(file.parent().unwrap()).unwrap();
-        fs::write(&file, file_contents).unwrap();
-        let mut index =  Index::default();
-        let metadata = fs::metadata(&file).unwrap();
-        index.entries.push(
-            DirEntry{
-                mtime: metadata.modified().unwrap().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs() as u32,
-                size: metadata.len() as u32,
-                sha: [0; 20],
-                name: file.file_name().unwrap().to_str().unwrap().to_string(),
-            }
-        );
+        let (index, temp_dir) = temp_tree(vec![Path::new("simple_file.txt")]);
         let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
         assert_eq!(value.entries, vec![]);
     }
 
     #[test]
     fn test_diff_against_index_a_file_modified() {
-        let temp_dir = TempDir::default();
-        let file_contents = "what\r\nis\r\nit";
         let entry_name = "simple_file.txt";
-        let file = temp_dir.join(entry_name);
-        fs::create_dir_all(file.parent().unwrap()).unwrap();
-        fs::write(&file, file_contents).unwrap();
-        let mut index =  Index::default();
-        let metadata = fs::metadata(&file).unwrap();
-        index.entries.push(
-            DirEntry{
-                mtime: metadata.modified().unwrap().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs() as u32,
-                size: metadata.len() as u32,
-                sha: [0; 20],
-                name: file.file_name().unwrap().to_str().unwrap().to_string(),
-            }
-        );
-        index.entries[0].mtime += 1;
+        let (mut index, temp_dir) = temp_tree(vec![Path::new(entry_name)]);
+        index.entries[0].size += 1;
         let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
         let entries = vec![WorkTreeEntry{name: entry_name.to_string(), state: Status::MODIFIED}];
         assert_eq!(value.entries, entries);
