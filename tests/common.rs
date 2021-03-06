@@ -5,17 +5,21 @@
  *          https://www.boost.org/LICENSE_1_0.txt)
  */
 use git2::{Repository, Signature, Time};
-use std::fs::File;
-use std::io::Write;
+use std::fs;
 use std::path::Path;
 
-pub fn test_repo(path: &str) -> () {
+pub fn test_repo(path: &str, files: Vec<&Path>) -> () {
     let repo = Repository::init(path).unwrap();
     let mut index = repo.index().unwrap();
     let root = repo.path().parent().unwrap();
-    let mut file = File::create(&root.join("foo.txt")).unwrap();
-    file.write(b"Stuff").unwrap();
-    index.add_path(Path::new("foo.txt")).unwrap();
+    for file in files {
+        let full_path = root.join(file);
+
+        // Done this way to support nested files
+        fs::create_dir_all(full_path.parent().unwrap()).unwrap();
+        fs::write(&full_path, file.to_str().unwrap()).unwrap();
+        index.add_path(&file).unwrap();
+    }
     index.write().unwrap();
     let tree_oid = index.write_tree().unwrap();
     let tree = repo.find_tree(tree_oid).unwrap();

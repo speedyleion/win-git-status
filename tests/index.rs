@@ -7,13 +7,15 @@
 extern crate win_git_status;
 use temp_testdir::TempDir;
 use win_git_status::Index;
+use std::path::Path;
+
 mod common;
 
 #[test]
 fn index_has_one_entry() {
     let temp = TempDir::default().permanent();
     let temp_path_str = temp.to_str().unwrap();
-    common::test_repo(temp_path_str);
+    common::test_repo(temp_path_str, vec![Path::new("some_file.txt")]);
     let index_file = temp.join(".git/index");
     let index = Index::new(&index_file).unwrap();
     assert_eq!(index.entries.len(), 1);
