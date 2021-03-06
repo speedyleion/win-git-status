@@ -5,8 +5,7 @@
  *          https://www.boost.org/LICENSE_1_0.txt)
  */
 
-use std::cmp::Ordering;
-use jwalk::{WalkDir, WalkDirGeneric};
+use jwalk::WalkDirGeneric;
 use std::path::Path;
 use std::sync::{Mutex, Arc};
 
@@ -16,7 +15,7 @@ use std::time::SystemTime;
 
 #[derive(Debug)]
 enum Status {
-    // CURRENT,
+    CURRENT,
     // NEW,
     MODIFIED,
     // DELETED
@@ -33,7 +32,7 @@ pub struct StatusState {
 
 #[derive(Debug, Default, Clone)]
 pub struct IndexState {
-    index: Arc<Mutex<Index>>,
+    index: Arc<Index>,
 }
 
 #[derive(Debug)]
@@ -67,7 +66,7 @@ impl WorkTree {
     ///     a git repo
     /// * `index` - The index to compare against
     pub fn diff_against_index(path: &Path, index: &Index) -> Result<WorkTree, WorkTreeError> {
-        let walk_dir = WalkDirGeneric::<((IndexState),(StatusState))>::new(path).skip_hidden(false).sort(true)
+        let walk_dir = WalkDirGeneric::<(IndexState, StatusState)>::new(path).skip_hidden(false).sort(true)
             .process_read_dir(process_directory);
         let mut entries = vec![];
         for entry in walk_dir {
@@ -94,9 +93,9 @@ impl WorkTree {
     }
 }
 
-fn process_directory(depth: Option<usize>, path: &Path, read_dir_state: &mut IndexState, children: &mut Vec<Result<jwalk::DirEntry<((IndexState),(StatusState))>, jwalk::Error>>){
+fn process_directory(depth: Option<usize>, path: &Path, read_dir_state: &mut IndexState, children: &mut Vec<Result<jwalk::DirEntry<(IndexState, StatusState)>, jwalk::Error>>){
     // jwalk will use None for depth on the parent of the root path, not sure why...
-    let depth = match depth {
+    let _depth = match depth {
         Some(depth) => depth,
         None => return,
     };
@@ -110,11 +109,21 @@ fn process_directory(depth: Option<usize>, path: &Path, read_dir_state: &mut Ind
                 .unwrap_or(false)
         }).unwrap_or(false)
     });
-    children.first_mut().map(|dir_entry_result| {
-        if let Ok(dir_entry) = dir_entry_result {
-            dir_entry.client_state.state = Status::MODIFIED;
+    for child in children {
+        if let Ok(child) = child {
+            let meta = child.metadata().unwrap();
+            let mtime = meta.modified().unwrap().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs() as u32;
+            let size = meta.len() as u32;
+            let index = &read_dir_state.index;
+            let entry = &index.entries[0];
+            if entry.mtime != mtime || entry.size != size{
+                child.client_state.state = Status::MODIFIED;
+            }
+            else {
+                child.client_state.state = Status::CURRENT;
+            }
         }
-    });
+    };
 }
 
 #[cfg(test)]
@@ -146,6 +155,7 @@ mod tests {
         assert_eq!(value.entries, vec![]);
     }
 
+    #[test]
     fn test_diff_against_index_a_file_modified() {
         let temp_dir = TempDir::default();
         let file_contents = "what\r\nis\r\nit";
