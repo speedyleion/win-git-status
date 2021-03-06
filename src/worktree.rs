@@ -21,7 +21,9 @@ pub enum Status {
 }
 
 impl Default for Status {
-    fn default() -> Self { Status::CURRENT }
+    fn default() -> Self {
+        Status::CURRENT
+    }
 }
 
 #[derive(PartialEq, Eq, Debug, Default)]
@@ -66,8 +68,13 @@ impl WorkTree {
     ///     a git repo
     /// * `index` - The index to compare against
     pub fn diff_against_index(path: &Path, index: Index) -> Result<WorkTree, WorkTreeError> {
-        let index_state = IndexState{index: Arc::new(index)};
-        let walk_dir = WalkDirGeneric::<(IndexState, WorkTreeEntry)>::new(path).skip_hidden(false).sort(true).root_read_dir_state(index_state)
+        let index_state = IndexState {
+            index: Arc::new(index),
+        };
+        let walk_dir = WalkDirGeneric::<(IndexState, WorkTreeEntry)>::new(path)
+            .skip_hidden(false)
+            .sort(true)
+            .root_read_dir_state(index_state)
             .process_read_dir(process_directory);
         let mut entries = vec![];
         for entry in walk_dir {
@@ -76,25 +83,27 @@ impl WorkTree {
             // Leverage the fact that `read_children_path` is set to None for files
             match entry.read_children_path {
                 None => {
-                    match entry.client_state.state {
-                        Status::MODIFIED => entries.push(entry.client_state),
-                        _ => ()
+                    if let Status::MODIFIED = entry.client_state.state {
+                        entries.push(entry.client_state)
                     }
-                },
+                }
                 _ => continue,
             }
         }
         let work_tree = WorkTree {
             path: String::from(path.to_str().unwrap()),
-            entries: entries
-            // entries
+            entries,
         };
         Ok(work_tree)
-
     }
 }
 
-fn process_directory(depth: Option<usize>, _path: &Path, read_dir_state: &mut IndexState, children: &mut Vec<Result<jwalk::DirEntry<(IndexState, WorkTreeEntry)>, jwalk::Error>>){
+fn process_directory(
+    depth: Option<usize>,
+    _path: &Path,
+    read_dir_state: &mut IndexState,
+    children: &mut Vec<Result<jwalk::DirEntry<(IndexState, WorkTreeEntry)>, jwalk::Error>>,
+) {
     // jwalk will use None for depth on the parent of the root path, not sure why...
     let _depth = match depth {
         Some(depth) => depth,
@@ -103,35 +112,44 @@ fn process_directory(depth: Option<usize>, _path: &Path, read_dir_state: &mut In
 
     // Skip '.git' directory
     children.retain(|dir_entry_result| {
-        dir_entry_result.as_ref().map(|dir_entry| {
-            dir_entry.file_name
-                .to_str()
-                .map(|s| s != ".git")
-                .unwrap_or(false)
-        }).unwrap_or(false)
+        dir_entry_result
+            .as_ref()
+            .map(|dir_entry| {
+                dir_entry
+                    .file_name
+                    .to_str()
+                    .map(|s| s != ".git")
+                    .unwrap_or(false)
+            })
+            .unwrap_or(false)
     });
     for child in children {
         if let Ok(child) = child {
             let meta = child.metadata().unwrap();
-            let mtime = meta.modified().unwrap().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs() as u32;
+            let mtime = meta
+                .modified()
+                .unwrap()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs() as u32;
             let size = meta.len() as u32;
             let index = &read_dir_state.index;
             let entry = &index.entries[0];
             child.client_state.name = child.file_name.to_str().unwrap().to_string();
-            if entry.mtime != mtime || entry.size != size{
+            if entry.mtime != mtime || entry.size != size {
                 child.client_state.state = Status::MODIFIED;
             }
         }
-    };
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use temp_testdir::TempDir;
+    use crate::DirEntry;
     use std::fs;
     use std::time::SystemTime;
-    use crate::DirEntry;
+    use temp_testdir::TempDir;
 
     // Test helper function to build up a temporary directory of `files`.  All files will have the
     // same contents `what\r\nis\r\nit`.  The `Index` will be populated with the values as the files
@@ -139,7 +157,7 @@ mod tests {
     // create and delete files from the returned `TempDir`.
     fn temp_tree(files: Vec<&Path>) -> (Index, TempDir) {
         let temp_dir = TempDir::default();
-        let mut index =  Index::default();
+        let mut index = Index::default();
 
         let file_contents = "what\r\nis\r\nit";
         for file in files {
@@ -149,14 +167,17 @@ mod tests {
             fs::create_dir_all(full_path.parent().unwrap()).unwrap();
             fs::write(&full_path, file_contents).unwrap();
             let metadata = fs::metadata(&full_path).unwrap();
-            index.entries.push(
-                DirEntry{
-                    mtime: metadata.modified().unwrap().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs() as u32,
-                    size: metadata.len() as u32,
-                    sha: [0; 20],
-                    name: file.to_str().unwrap().to_string(),
-                }
-            );
+            index.entries.push(DirEntry {
+                mtime: metadata
+                    .modified()
+                    .unwrap()
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs() as u32,
+                size: metadata.len() as u32,
+                sha: [0; 20],
+                name: file.to_str().unwrap().to_string(),
+            });
         }
         (index, temp_dir)
     }
@@ -174,9 +195,10 @@ mod tests {
         let (mut index, temp_dir) = temp_tree(vec![Path::new(entry_name)]);
         index.entries[0].size += 1;
         let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
-        let entries = vec![WorkTreeEntry{name: entry_name.to_string(), state: Status::MODIFIED}];
+        let entries = vec![WorkTreeEntry {
+            name: entry_name.to_string(),
+            state: Status::MODIFIED,
+        }];
         assert_eq!(value.entries, entries);
-
     }
 }
-

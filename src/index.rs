@@ -128,8 +128,8 @@ impl Index {
                     >> name: take!(name_size)
                     >> take!(8 - ((62 + name_size) % 8))
                     >> (DirEntry {
-                        mtime: mtime,
-                        size: size,
+                        mtime,
+                        size,
                         sha: sha.try_into().unwrap(),
                         name: String::from_utf8(name.to_vec()).unwrap()
                     })
