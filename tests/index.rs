@@ -50,8 +50,6 @@ fn index_has_nested_entries_in_order() {
     let index_file = temp.join(".git/index");
     let index = Index::new(&index_file).unwrap();
 
-    // let mut index_names = HashMap::new();
-    // index.entries.into_iter().map(|(k, v)| index_names.insert(k, v.iter().map(|e| &e.name))).collect();
     let mut file_map = HashMap::new();
     names.sort();
     for file in names.iter().map(|n| Path::new(n)) {
@@ -65,4 +63,18 @@ fn index_has_nested_entries_in_order() {
         let index_names: Vec<&String> = value.iter().map(|e| &e.name).collect();
         assert_eq!(&index_names, file_map.get(key.as_str()).unwrap());
     }
+}
+
+#[test]
+fn index_has_more_deeply_nested_entries() {
+    let mut names = vec!["dir_1/dir_2/dir_3/file.txt"];
+    let files = names.iter().map(|n| Path::new(n)).collect();
+    let temp = TempDir::default().permanent();
+    let temp_path_str = temp.to_str().unwrap();
+    common::test_repo(temp_path_str, files);
+    let index_file = temp.join(".git/index");
+    let index = Index::new(&index_file).unwrap();
+
+    assert_eq!(index.entries.len(), 1);
+    assert_eq!(index.entries.get("dir_1/dir_2/dir_3").unwrap()[0].name, "file.txt");
 }

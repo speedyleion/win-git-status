@@ -143,6 +143,12 @@ impl Index {
         };
         Ok((output, (parent_path.to_string(), entry)))
     }
+
+    // Get the directory entry and populate any parent entries that don't exist
+    fn get_directory_entry(name: &String, &mut directory_map: HashMap<String, Vec<DirEntry>>) -> &mut Vec<DirEntry>{
+        let entry = directory_map.entry(name);
+
+    }
 }
 
 #[cfg(test)]

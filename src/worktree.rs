@@ -128,7 +128,10 @@ fn process_directory(
     });
     let index = &read_dir_state.index;
     let relative_path = diff_paths(path, &read_dir_state.path).unwrap();
-    let index_dir_entry = index.entries.get(relative_path.to_str().unwrap()).unwrap();
+    let unix_path = relative_path.to_str().unwrap().replace("\\", "/");
+    println!("The path is \"{:?}\"", unix_path);
+
+    let index_dir_entry = index.entries.get(&unix_path).unwrap();
     for child in children {
         if let Ok(child) = child {
             let meta = child.metadata().unwrap();
@@ -209,5 +212,12 @@ mod tests {
             state: Status::MODIFIED,
         }];
         assert_eq!(value.entries, entries);
+    }
+
+    #[test]
+    fn test_diff_against_index_deeply_nested() {
+        let (index, temp_dir) = temp_tree(vec![Path::new("dir_1/dir_2/dir_3/file.txt")]);
+        let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
+        assert_eq!(value.entries, vec![]);
     }
 }
