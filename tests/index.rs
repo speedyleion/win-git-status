@@ -55,7 +55,7 @@ fn index_has_nested_entries_in_order() {
     let mut file_map = HashMap::new();
     names.sort();
     for file in names.iter().map(|n| Path::new(n)) {
-        let mut entry = file_map
+        let entry = file_map
             .entry(file.parent().unwrap().to_str().unwrap())
             .or_insert(vec![]);
         entry.push(file.file_name().unwrap().to_str().unwrap());

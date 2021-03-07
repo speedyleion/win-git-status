@@ -11,7 +11,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::Index;
-use std::fs::read;
 use std::time::SystemTime;
 
 #[derive(PartialEq, Eq, Debug)]
@@ -175,7 +174,7 @@ mod tests {
             let metadata = fs::metadata(&full_path).unwrap();
 
             let relative_parent = file.parent().unwrap().to_str().unwrap().to_string();
-            let mut dir_entries = index.entries.entry(relative_parent).or_insert(vec![]);
+            let dir_entries = index.entries.entry(relative_parent).or_insert(vec![]);
             dir_entries.push(DirEntry {
                 mtime: metadata
                     .modified()
@@ -202,7 +201,7 @@ mod tests {
     fn test_diff_against_index_a_file_modified() {
         let entry_name = "simple_file.txt";
         let (mut index, temp_dir) = temp_tree(vec![Path::new(entry_name)]);
-        let mut dir_entries = index.entries.get_mut("").unwrap();
+        let dir_entries = index.entries.get_mut("").unwrap();
         dir_entries[0].size += 1;
         let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
         let entries = vec![WorkTreeEntry {
