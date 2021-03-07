@@ -6,13 +6,13 @@
  */
 
 use jwalk::WalkDirGeneric;
+use pathdiff::diff_paths;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use pathdiff::diff_paths;
 
 use crate::Index;
-use std::time::SystemTime;
 use std::fs::read;
+use std::time::SystemTime;
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum Status {

@@ -82,7 +82,9 @@ impl Index {
         let mut entries = HashMap::new();
         for _ in 0..header.entries {
             let (local_contents, (directory, entry)) = Index::read_entry(&contents)?;
-            let dir_entries = entries.entry(directory).or_insert_with(Vec::<DirEntry>::new);
+            let dir_entries = entries
+                .entry(directory)
+                .or_insert_with(Vec::<DirEntry>::new);
             dir_entries.push(entry);
             contents = local_contents;
         }
@@ -117,16 +119,27 @@ impl Index {
     ///
     ///
     fn read_entry(stream: &[u8]) -> IResult<&[u8], (String, DirEntry)> {
-        let (output, (mtime, size, sha, full_name)) = do_parse!( stream, take!(8) >> mtime: be_u32 >> take!(24) >> size: be_u32 >> sha: take!(20) >> name_size: be_u16 >> name: take!(name_size) >> take!(8 - ((62 + name_size) % 8)) >> (mtime, size, sha, String::from_utf8(name.to_vec()).unwrap()))?;
+        let (output, (mtime, size, sha, full_name)) = do_parse!(
+            stream,
+            take!(8)
+                >> mtime: be_u32
+                >> take!(24)
+                >> size: be_u32
+                >> sha: take!(20)
+                >> name_size: be_u16
+                >> name: take!(name_size)
+                >> take!(8 - ((62 + name_size) % 8))
+                >> (mtime, size, sha, String::from_utf8(name.to_vec()).unwrap())
+        )?;
 
         let full_path = Path::new(&full_name);
         let parent_path = full_path.parent().unwrap().to_str().unwrap();
         let name = full_path.file_name().unwrap().to_str().unwrap().to_string();
-        let entry = DirEntry{
+        let entry = DirEntry {
             size,
             mtime,
             sha: sha.try_into().unwrap(),
-            name
+            name,
         };
         Ok((output, (parent_path.to_string(), entry)))
     }
@@ -212,13 +225,15 @@ mod tests {
             Index::read_entry(&stream),
             Ok((
                 &b""[..],
-                ("some/file".to_string(),
-                DirEntry {
-                    mtime: 20,
-                    size: 70,
-                    sha: *sha,
-                    name: "name".to_string()
-                })
+                (
+                    "some/file".to_string(),
+                    DirEntry {
+                        mtime: 20,
+                        size: 70,
+                        sha: *sha,
+                        name: "name".to_string()
+                    }
+                )
             ))
         );
     }
@@ -239,13 +254,14 @@ mod tests {
             Ok((
                 &b""[..],
                 (
-                "a/different/name/to/a/file".to_string(),
-                DirEntry {
-                    mtime: 0,
-                    size: 0,
-                    sha: *sha,
-                    name: "with.ext".to_string()
-                })
+                    "a/different/name/to/a/file".to_string(),
+                    DirEntry {
+                        mtime: 0,
+                        size: 0,
+                        sha: *sha,
+                        name: "with.ext".to_string()
+                    }
+                )
             ))
         );
     }
@@ -268,13 +284,15 @@ mod tests {
             read,
             Ok((
                 &suffix[..],
-                ("a".to_string(),
-                DirEntry {
-                    mtime: 0,
-                    size: 0,
-                    sha: *sha,
-                    name: "file".to_string()
-                })
+                (
+                    "a".to_string(),
+                    DirEntry {
+                        mtime: 0,
+                        size: 0,
+                        sha: *sha,
+                        name: "file".to_string()
+                    }
+                )
             ))
         );
     }
@@ -298,13 +316,13 @@ mod tests {
             Ok((
                 &suffix[..],
                 (
-                "".to_string(),
-                DirEntry {
-                    mtime: 0,
-                    size: 0,
-                    sha: *sha,
-                    name: "niners999".to_string()
-                }
+                    "".to_string(),
+                    DirEntry {
+                        mtime: 0,
+                        size: 0,
+                        sha: *sha,
+                        name: "niners999".to_string()
+                    }
                 )
             ))
         );
@@ -328,13 +346,15 @@ mod tests {
             read,
             Ok((
                 &suffix[..],
-                ("".to_string(),
-                DirEntry {
-                    mtime: 0,
-                    size: 0,
-                    sha: *sha,
-                    name: "22".to_string()
-                })
+                (
+                    "".to_string(),
+                    DirEntry {
+                        mtime: 0,
+                        size: 0,
+                        sha: *sha,
+                        name: "22".to_string()
+                    }
+                )
             ))
         );
     }
