@@ -21,6 +21,7 @@ use std::io::Read;
 use std::path::Path;
 
 use crate::DirEntry;
+use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct GitStatusError {
@@ -58,7 +59,7 @@ pub struct Index {
     path: String,
     oid: [u8; 20],
     header: Header,
-    pub entries: Vec<DirEntry>,
+    pub entries: HashMap<String, Vec<DirEntry>>,
 }
 
 #[derive(PartialEq, Eq, Debug, Default, Clone)]
@@ -79,10 +80,11 @@ impl Index {
         let mut buffer: Vec<u8> = Vec::new();
         File::open(&path).and_then(|mut f| f.read_to_end(&mut buffer))?;
         let (mut contents, header) = Index::read_header(&buffer)?;
-        let mut entries = vec![];
+        let mut entries = HashMap::new();
         for _ in 0..header.entries {
-            let (local_contents, entry) = Index::read_entry(&contents)?;
-            entries.push(entry);
+            let (local_contents, (directory, entry)) = Index::read_entry(&contents)?;
+            let dir_entries = entries.entry(directory).or_insert_with(Vec::<DirEntry>::new);
+            dir_entries.push(entry);
             contents = local_contents;
         }
         let index = Index {
@@ -115,27 +117,19 @@ impl Index {
     /// Reads in entry from the provided stream
     ///
     ///
-    fn read_entry(stream: &[u8]) -> IResult<&[u8], DirEntry> {
-        named!(
-            entry<DirEntry>,
-            do_parse!(
-                take!(8)
-                    >> mtime: be_u32
-                    >> take!(24)
-                    >> size: be_u32
-                    >> sha: take!(20)
-                    >> name_size: be_u16
-                    >> name: take!(name_size)
-                    >> take!(8 - ((62 + name_size) % 8))
-                    >> (DirEntry {
-                        mtime,
-                        size,
-                        sha: sha.try_into().unwrap(),
-                        name: String::from_utf8(name.to_vec()).unwrap()
-                    })
-            )
-        );
-        dbg_dmp(entry, "foo")(stream)
+    fn read_entry(stream: &[u8]) -> IResult<&[u8], (String, DirEntry)> {
+        let (output, (mtime, size, sha, full_name)) = do_parse!( stream, take!(8) >> mtime: be_u32 >> take!(24) >> size: be_u32 >> sha: take!(20) >> name_size: be_u16 >> name: take!(name_size) >> take!(8 - ((62 + name_size) % 8)) >> (mtime, size, sha, String::from_utf8(name.to_vec()).unwrap()))?;
+
+        let full_path = Path::new(&full_name);
+        let parent_path = full_path.parent().unwrap().to_str().unwrap();
+        let name = full_path.file_name().unwrap().to_str().unwrap().to_string();
+        let entry = DirEntry{
+            size,
+            mtime,
+            sha: sha.try_into().unwrap(),
+            name
+        };
+        Ok((output, (parent_path.to_string(), entry)))
     }
 }
 

@@ -8,6 +8,7 @@ extern crate win_git_status;
 use std::path::Path;
 use temp_testdir::TempDir;
 use win_git_status::Index;
+use std::collections::HashMap;
 
 mod common;
 
@@ -19,6 +20,7 @@ fn index_has_one_entry() {
     let index_file = temp.join(".git/index");
     let index = Index::new(&index_file).unwrap();
     assert_eq!(index.entries.len(), 1);
+    assert_eq!(index.entries.get("").unwrap().len(), 1);
 }
 
 #[test]
@@ -31,14 +33,19 @@ fn index_has_three_entries_in_order() {
     let index_file = temp.join(".git/index");
     let index = Index::new(&index_file).unwrap();
 
-    let index_names: Vec<&String> = index.entries.iter().map(|e| &e.name).collect();
-    names.sort();
-    assert_eq!(index_names, names);
+    // let mut index_names = HashMap::new();
+    // index.entries.into_iter().map(|(k, v)| index_names.insert(k, v.iter().map(|e| &e.name).collect())).collect();
+
+    // let mut file_map = HashMap::new();
+    // files.iter().map(|f| file_map.insert(f.parent().unwrap().to_str().unwrap(), f.to_str().unwrap())).collect();
+    // let index_names: Vec<&String> = index.entries.iter().map(|e| &e.name).collect();
+    // names.sort();
+    // assert_eq!(index_names, names);
 }
 
 #[test]
-fn index_has_nested_entries_in_oder() {
-    let mut names = vec!["dir_3/file_2.txt", "dir_2/file_1.txt", "absolut.md"];
+fn index_has_nested_entries_in_order() {
+    let mut names = vec!["dir_3/file_2.txt", "dir_2/file_1.txt", "absolute.md"];
     let files = names.iter().map(|n| Path::new(n)).collect();
     let temp = TempDir::default().permanent();
     let temp_path_str = temp.to_str().unwrap();
@@ -46,7 +53,10 @@ fn index_has_nested_entries_in_oder() {
     let index_file = temp.join(".git/index");
     let index = Index::new(&index_file).unwrap();
 
-    let index_names: Vec<&String> = index.entries.iter().map(|e| &e.name).collect();
-    names.sort();
-    assert_eq!(index_names, names);
+    // let mut index_names = HashMap::new();
+    // index.entries.into_iter().map(|(k, v)| index_names.insert(k, v.iter().map(|e| &e.name))).collect();
+
+    // let mut file_map = HashMap::new();
+    // files.iter().map(|f| file_map.insert(f.parent().unwrap(), f.to_str().unwrap())).collect();
+    // assert_eq!(index_names.len() == file_map.len() && index_names.keys().all(|k| file_map.contains_key(k)));
 }

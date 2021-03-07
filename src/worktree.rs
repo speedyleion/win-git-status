@@ -100,7 +100,7 @@ impl WorkTree {
 
 fn process_directory(
     depth: Option<usize>,
-    _path: &Path,
+    path: &Path,
     read_dir_state: &mut IndexState,
     children: &mut Vec<Result<jwalk::DirEntry<(IndexState, WorkTreeEntry)>, jwalk::Error>>,
 ) {
@@ -134,7 +134,8 @@ fn process_directory(
                 .as_secs() as u32;
             let size = meta.len() as u32;
             let index = &read_dir_state.index;
-            let entry = &index.entries[0];
+            let index_dir_entry = index.entries.get(path.to_str().unwrap()).unwrap();
+            let entry = &index_dir_entry[0];
             child.client_state.name = child.file_name.to_str().unwrap().to_string();
             if entry.mtime != mtime || entry.size != size {
                 child.client_state.state = Status::MODIFIED;
