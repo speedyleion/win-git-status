@@ -6,11 +6,13 @@
  */
 
 use jwalk::WalkDirGeneric;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use pathdiff::diff_paths;
 
 use crate::Index;
 use std::time::SystemTime;
+use std::fs::read;
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum Status {
@@ -34,6 +36,7 @@ pub struct WorkTreeEntry {
 
 #[derive(Debug, Default, Clone)]
 struct IndexState {
+    path: PathBuf,
     index: Arc<Index>,
 }
 
@@ -69,6 +72,7 @@ impl WorkTree {
     /// * `index` - The index to compare against
     pub fn diff_against_index(path: &Path, index: Index) -> Result<WorkTree, WorkTreeError> {
         let index_state = IndexState {
+            path: PathBuf::from(path),
             index: Arc::new(index),
         };
         let walk_dir = WalkDirGeneric::<(IndexState, WorkTreeEntry)>::new(path)
@@ -123,6 +127,9 @@ fn process_directory(
             })
             .unwrap_or(false)
     });
+    let index = &read_dir_state.index;
+    let relative_path = diff_paths(path, &read_dir_state.path).unwrap();
+    let index_dir_entry = index.entries.get(relative_path.to_str().unwrap()).unwrap();
     for child in children {
         if let Ok(child) = child {
             let meta = child.metadata().unwrap();
@@ -133,8 +140,6 @@ fn process_directory(
                 .unwrap()
                 .as_secs() as u32;
             let size = meta.len() as u32;
-            let index = &read_dir_state.index;
-            let index_dir_entry = index.entries.get(path.to_str().unwrap()).unwrap();
             let entry = &index_dir_entry[0];
             child.client_state.name = child.file_name.to_str().unwrap().to_string();
             if entry.mtime != mtime || entry.size != size {
@@ -168,7 +173,10 @@ mod tests {
             fs::create_dir_all(full_path.parent().unwrap()).unwrap();
             fs::write(&full_path, file_contents).unwrap();
             let metadata = fs::metadata(&full_path).unwrap();
-            index.entries.push(DirEntry {
+
+            let relative_parent = file.parent().unwrap().to_str().unwrap().to_string();
+            let mut dir_entries = index.entries.entry(relative_parent).or_insert(vec![]);
+            dir_entries.push(DirEntry {
                 mtime: metadata
                     .modified()
                     .unwrap()
@@ -194,7 +202,8 @@ mod tests {
     fn test_diff_against_index_a_file_modified() {
         let entry_name = "simple_file.txt";
         let (mut index, temp_dir) = temp_tree(vec![Path::new(entry_name)]);
-        index.entries[0].size += 1;
+        let mut dir_entries = index.entries.get_mut("").unwrap();
+        dir_entries[0].size += 1;
         let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
         let entries = vec![WorkTreeEntry {
             name: entry_name.to_string(),

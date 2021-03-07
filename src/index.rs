@@ -6,11 +6,10 @@
  */
 
 use nom::bytes::complete::tag;
-use nom::named;
 use nom::number::complete::be_u16;
 use nom::number::complete::be_u32;
 use nom::sequence::tuple;
-use nom::{dbg_dmp, take};
+use nom::take;
 
 use nom::do_parse;
 use nom::IResult;
@@ -213,12 +212,13 @@ mod tests {
             Index::read_entry(&stream),
             Ok((
                 &b""[..],
+                ("some/file".to_string(),
                 DirEntry {
                     mtime: 20,
                     size: 70,
                     sha: *sha,
-                    name: String::from_utf8(name.to_vec()).unwrap()
-                }
+                    name: "name".to_string()
+                })
             ))
         );
     }
@@ -238,12 +238,14 @@ mod tests {
             Index::read_entry(&stream),
             Ok((
                 &b""[..],
+                (
+                "a/different/name/to/a/file".to_string(),
                 DirEntry {
                     mtime: 0,
                     size: 0,
                     sha: *sha,
-                    name: String::from_utf8(name.to_vec()).unwrap()
-                }
+                    name: "with.ext".to_string()
+                })
             ))
         );
     }
@@ -266,12 +268,13 @@ mod tests {
             read,
             Ok((
                 &suffix[..],
+                ("a".to_string(),
                 DirEntry {
                     mtime: 0,
                     size: 0,
                     sha: *sha,
-                    name: String::from_utf8(name.to_vec()).unwrap()
-                }
+                    name: "file".to_string()
+                })
             ))
         );
     }
@@ -294,12 +297,15 @@ mod tests {
             read,
             Ok((
                 &suffix[..],
+                (
+                "".to_string(),
                 DirEntry {
                     mtime: 0,
                     size: 0,
                     sha: *sha,
-                    name: String::from_utf8(name.to_vec()).unwrap()
+                    name: "niners999".to_string()
                 }
+                )
             ))
         );
     }
@@ -322,12 +328,13 @@ mod tests {
             read,
             Ok((
                 &suffix[..],
+                ("".to_string(),
                 DirEntry {
                     mtime: 0,
                     size: 0,
                     sha: *sha,
-                    name: String::from_utf8(name.to_vec()).unwrap()
-                }
+                    name: "22".to_string()
+                })
             ))
         );
     }
