@@ -82,7 +82,7 @@ impl Index {
         let mut entries = HashMap::new();
         for _ in 0..header.entries {
             let (local_contents, (directory, entry)) = Index::read_entry(&contents)?;
-            let directory_entry = Index::get_directory_entry(directory, &mut entries);
+            let directory_entry = Index::get_directory_entry(&directory, &mut entries);
             directory_entry.push(entry);
             contents = local_contents;
         }
@@ -143,13 +143,13 @@ impl Index {
     }
 
     // Get the directory entry and populate any parent entries that don't exist
-    fn get_directory_entry<'a>(name: String, directory_map: &'a mut HashMap<String, Vec<DirEntry>>) -> &'a mut Vec<DirEntry>{
-        let entry = directory_map.get_mut(&name);
+    fn get_directory_entry<'a>(name: &String, directory_map: &'a mut HashMap<String, Vec<DirEntry>>) -> &'a mut Vec<DirEntry> {
+        let entry = directory_map.get(name);
         let mut directory_entry = match entry {
-            Some(entry) => entry,
-            None => {
-                directory_map.insert(name, Vec::<DirEntry>::new());
-                directory_map.get_mut(&name).unwrap()
+            Some(entry) => directory_map.get_mut(name).unwrap(),
+                None => {
+                directory_map.insert(name.to_string(), Vec::<DirEntry>::new());
+                directory_map.get_mut(name).unwrap()
             },
         };
 
