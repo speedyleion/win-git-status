@@ -129,7 +129,9 @@ fn process_directory(
     let index = &read_dir_state.index;
     let relative_path = diff_paths(path, &read_dir_state.path).unwrap();
     let unix_path = relative_path.to_str().unwrap().replace("\\", "/");
-    println!("The path is \"{:?}\"", unix_path);
+
+    println!("The entries are \"{:?}\"", index.entries);
+    println!("The path \"{:?}\"", unix_path);
 
     let index_dir_entry = index.entries.get(&unix_path).unwrap();
     for child in children {
@@ -177,7 +179,11 @@ mod tests {
             let metadata = fs::metadata(&full_path).unwrap();
 
             let relative_parent = file.parent().unwrap().to_str().unwrap().to_string();
-            let dir_entries = index.entries.entry(relative_parent).or_insert(vec![]);
+            for ancestor in Path::new(&relative_parent).ancestors() {
+                index.entries.entry(ancestor.to_str().unwrap().to_string()).or_insert_with(Vec::<DirEntry>::new);
+            }
+
+            let dir_entries = index.entries.get_mut(&relative_parent).unwrap();
             dir_entries.push(DirEntry {
                 mtime: metadata
                     .modified()
