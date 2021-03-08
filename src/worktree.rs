@@ -5,13 +5,13 @@
  *          https://www.boost.org/LICENSE_1_0.txt)
  */
 
+use core::cmp::Ordering;
 use jwalk::WalkDirGeneric;
 use pathdiff::diff_paths;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use core::cmp::Ordering;
 
-use crate::{Index, DirEntry};
+use crate::{DirEntry, Index};
 use std::time::SystemTime;
 
 #[derive(PartialEq, Eq, Debug, Clone)]
@@ -19,7 +19,7 @@ pub enum Status {
     CURRENT,
     NEW,
     MODIFIED,
-    DELETED
+    DELETED,
 }
 
 impl Default for Status {
@@ -142,46 +142,63 @@ fn get_file_deltas(
     worktree: &mut Vec<Result<jwalk::DirEntry<(IndexState, WorkTreeEntry)>, jwalk::Error>>,
     index: &[DirEntry],
     file_changes: &Mutex<Vec<WorkTreeEntry>>,
-    ) {
+) {
     let mut worktree_iter = worktree.iter_mut();
     let mut index_iter = index.iter();
     let mut worktree_file = worktree_iter.next();
     let mut index_file = index_iter.next();
     while let Some(wa_file) = worktree_file.as_mut() {
-            let mut w_file = wa_file.as_mut().unwrap();
-            match index_file {
-                Some(i_file) => {
-                    match w_file.file_name().cmp(i_file.name.as_ref()) {
-                        Ordering::Equal => {
-                            if is_modified(&mut w_file, i_file) {
-                                file_changes.lock().unwrap().push(WorkTreeEntry{name: w_file.file_name.to_str().unwrap().to_string(), state: Status::MODIFIED,});
-                            }
-                            index_file = index_iter.next();
-                            worktree_file = worktree_iter.next();
-                        },
-                        Ordering::Less => {
-                            file_changes.lock().unwrap().push(WorkTreeEntry{name: w_file.file_name.to_str().unwrap().to_string(), state: Status::NEW,});
-                            worktree_file = worktree_iter.next();
-                        }
-                        Ordering::Greater => {
-                            file_changes.lock().unwrap().push(WorkTreeEntry{name: i_file.name.to_string(), state: Status::DELETED,});
-                            index_file = index_iter.next();
-                        }
+        let mut w_file = wa_file.as_mut().unwrap();
+        match index_file {
+            Some(i_file) => match w_file.file_name().cmp(i_file.name.as_ref()) {
+                Ordering::Equal => {
+                    if is_modified(&mut w_file, i_file) {
+                        file_changes.lock().unwrap().push(WorkTreeEntry {
+                            name: w_file.file_name.to_str().unwrap().to_string(),
+                            state: Status::MODIFIED,
+                        });
                     }
-                },
-                None => {
-                    file_changes.lock().unwrap().push(WorkTreeEntry{name: w_file.file_name.to_str().unwrap().to_string(), state: Status::NEW,});
+                    index_file = index_iter.next();
                     worktree_file = worktree_iter.next();
-                },
+                }
+                Ordering::Less => {
+                    file_changes.lock().unwrap().push(WorkTreeEntry {
+                        name: w_file.file_name.to_str().unwrap().to_string(),
+                        state: Status::NEW,
+                    });
+                    worktree_file = worktree_iter.next();
+                }
+                Ordering::Greater => {
+                    file_changes.lock().unwrap().push(WorkTreeEntry {
+                        name: i_file.name.to_string(),
+                        state: Status::DELETED,
+                    });
+                    index_file = index_iter.next();
+                }
+            },
+            None => {
+                file_changes.lock().unwrap().push(WorkTreeEntry {
+                    name: w_file.file_name.to_str().unwrap().to_string(),
+                    state: Status::NEW,
+                });
+                worktree_file = worktree_iter.next();
             }
-
         }
+    }
     // TODO Need to handle left over index entries
 }
 
-fn is_modified(worktree_file: &mut jwalk::DirEntry<(IndexState, WorkTreeEntry)>, index_file: &DirEntry) -> bool {
+fn is_modified(
+    worktree_file: &mut jwalk::DirEntry<(IndexState, WorkTreeEntry)>,
+    index_file: &DirEntry,
+) -> bool {
     let meta = worktree_file.metadata().unwrap();
-    let mtime = meta.modified().unwrap().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs() as u32;
+    let mtime = meta
+        .modified()
+        .unwrap()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as u32;
     let size = meta.len() as u32;
     let mut modified = false;
     if index_file.mtime != mtime || index_file.size != size {
@@ -295,10 +312,13 @@ mod tests {
         }
 
         let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
-        let entries: Vec<WorkTreeEntry> = new_file_names.iter().map(|&n| WorkTreeEntry {
-            name: n.to_string(),
-            state: Status::NEW,
-        }).collect();
+        let entries: Vec<WorkTreeEntry> = new_file_names
+            .iter()
+            .map(|&n| WorkTreeEntry {
+                name: n.to_string(),
+                state: Status::NEW,
+            })
+            .collect();
         assert_eq!(value.entries, entries);
     }
 
@@ -316,5 +336,4 @@ mod tests {
         }];
         assert_eq!(value.entries, entries);
     }
-
 }

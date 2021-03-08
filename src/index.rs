@@ -384,7 +384,6 @@ mod tests {
         let mut map = HashMap::new();
         Index::get_directory_entry(rooted_dir, &mut map);
         assert_eq!(true, map.len() == 1 && map.contains_key(""));
-
     }
 
     #[test]
@@ -394,7 +393,9 @@ mod tests {
         Index::get_directory_entry(deep_dir, &mut map);
 
         let directories = vec!["", "1", "1/2", "1/2/3"];
-        assert_eq!(true, map.len() == directories.len() && directories.iter().all(|d| map.contains_key(*d)));
-
+        assert_eq!(
+            true,
+            map.len() == directories.len() && directories.iter().all(|d| map.contains_key(*d))
+        );
     }
 }
