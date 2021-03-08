@@ -143,16 +143,21 @@ impl Index {
     }
 
     // Get the directory entry and populate any parent entries that don't exist
-    fn get_directory_entry<'a>(name: &String, directory_map: &'a mut HashMap<String, Vec<DirEntry>>) -> &'a mut Vec<DirEntry> {
+    fn get_directory_entry<'a>(
+        name: &str,
+        directory_map: &'a mut HashMap<String, Vec<DirEntry>>,
+    ) -> &'a mut Vec<DirEntry> {
         let _entry = directory_map.get(name);
         let directory_entry = match _entry {
             Some(_entry) => directory_map.get_mut(name).unwrap(),
             None => {
                 for ancestor in Path::new(name).ancestors() {
-                    directory_map.entry(ancestor.to_str().unwrap().to_string()).or_insert_with(Vec::<DirEntry>::new);
+                    directory_map
+                        .entry(ancestor.to_str().unwrap().to_string())
+                        .or_insert_with(Vec::<DirEntry>::new);
                 }
                 directory_map.get_mut(name).unwrap()
-            },
+            }
         };
 
         directory_entry

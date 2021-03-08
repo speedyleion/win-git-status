@@ -129,9 +129,7 @@ fn process_directory(
     children.retain(|dir_entry_result| {
         dir_entry_result
             .as_ref()
-            .map(|dir_entry| {
-                dir_entry.file_type().is_file()
-            })
+            .map(|dir_entry| dir_entry.file_type().is_file())
             .unwrap_or(false)
     });
     let index = &read_dir_state.index;
@@ -185,7 +183,10 @@ mod tests {
 
             let relative_parent = file.parent().unwrap().to_str().unwrap().to_string();
             for ancestor in Path::new(&relative_parent).ancestors() {
-                index.entries.entry(ancestor.to_str().unwrap().to_string()).or_insert_with(Vec::<DirEntry>::new);
+                index
+                    .entries
+                    .entry(ancestor.to_str().unwrap().to_string())
+                    .or_insert_with(Vec::<DirEntry>::new);
             }
 
             let dir_entries = index.entries.get_mut(&relative_parent).unwrap();
