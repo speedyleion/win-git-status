@@ -80,7 +80,7 @@ impl WorkTree {
             index: Arc::new(index),
             changed_files,
         };
-        let walk_dir = WalkDirGeneric::<(IndexState, WorkTreeEntry)>::new(path)
+        let walk_dir = WalkDirGeneric::<(IndexState, bool)>::new(path)
             .skip_hidden(false)
             .sort(true)
             .root_read_dir_state(index_state)
@@ -102,7 +102,7 @@ fn process_directory(
     depth: Option<usize>,
     path: &Path,
     read_dir_state: &mut IndexState,
-    children: &mut Vec<Result<jwalk::DirEntry<(IndexState, WorkTreeEntry)>, jwalk::Error>>,
+    children: &mut Vec<Result<jwalk::DirEntry<(IndexState, bool)>, jwalk::Error>>,
 ) {
     // jwalk will use None for depth on the parent of the root path, not sure why...
     let _depth = match depth {
@@ -139,7 +139,7 @@ fn process_directory(
 }
 
 fn get_file_deltas(
-    worktree: &mut Vec<Result<jwalk::DirEntry<(IndexState, WorkTreeEntry)>, jwalk::Error>>,
+    worktree: &mut Vec<Result<jwalk::DirEntry<(IndexState, bool)>, jwalk::Error>>,
     index: &[DirEntry],
     file_changes: &Mutex<Vec<WorkTreeEntry>>,
 ) {
@@ -195,7 +195,7 @@ fn get_file_deltas(
 }
 
 fn is_modified(
-    worktree_file: &mut jwalk::DirEntry<(IndexState, WorkTreeEntry)>,
+    worktree_file: &mut jwalk::DirEntry<(IndexState, bool)>,
     index_file: &DirEntry,
 ) -> bool {
     let meta = worktree_file.metadata().unwrap();
@@ -287,6 +287,19 @@ mod tests {
         let (index, temp_dir) = temp_tree(vec![Path::new("dir_1/dir_2/dir_3/file.txt")]);
         let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
         assert_eq!(value.entries, vec![]);
+    }
+
+    #[test]
+    fn test_diff_against_modified_index_deeply_nested() {
+        let (mut index, temp_dir) = temp_tree(vec![Path::new("dir_1/dir_2/dir_3/file.txt")]);
+        let dir_entries = index.entries.get_mut("dir_1/dir_2/dir_3").unwrap();
+        dir_entries[0].size += 1;
+        let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
+        let entries = vec![WorkTreeEntry {
+            name: "dir_1/dir_2/dir_3/file.txt".to_string(),
+            state: Status::MODIFIED,
+        }];
+        assert_eq!(value.entries, entries);
     }
 
     #[test]
