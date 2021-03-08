@@ -87,8 +87,10 @@ impl WorkTree {
             // Leverage the fact that `read_children_path` is set to None for files
             match entry.read_children_path {
                 None => {
-                    if let Status::MODIFIED = entry.client_state.state {
-                        entries.push(entry.client_state)
+                    if let Status::CURRENT = entry.client_state.state {
+                        continue;
+                    } else {
+                        entries.push(entry.client_state);
                     }
                 }
                 _ => continue,
@@ -176,12 +178,9 @@ fn get_file_deltas(
 
         } else {
             // handle index has new entries...
+            break;
         }
     }
-}
-fn compare_file_names(worktree_file: jwalk::DirEntry<(IndexState, WorkTreeEntry)>, index_file: &DirEntry) {
-
-
 }
 
 fn is_modified(worktree_file: &mut jwalk::DirEntry<(IndexState, WorkTreeEntry)>, index_file: &DirEntry){
