@@ -16,7 +16,7 @@ use std::time::SystemTime;
 #[derive(PartialEq, Eq, Debug)]
 pub enum Status {
     CURRENT,
-    // NEW,
+    NEW,
     MODIFIED,
     // DELETED
 }
@@ -231,5 +231,21 @@ mod tests {
         let (index, temp_dir) = temp_tree(vec![Path::new("dir_1/dir_2/dir_3/file.txt")]);
         let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
         assert_eq!(value.entries, vec![]);
+    }
+
+    #[test]
+    fn test_new_file_in_worktree() {
+        let (index, temp_dir) = temp_tree(vec![Path::new("simple_file.txt")]);
+        let new_file_name = "new_file.txt";
+        let new_file = temp_dir.join(new_file_name);
+        fs::create_dir_all(new_file.parent().unwrap()).unwrap();
+        fs::write(&new_file, "stuff").unwrap();
+
+        let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
+        let entries = vec![WorkTreeEntry {
+            name: new_file_name.to_string(),
+            state: Status::NEW,
+        }];
+        assert_eq!(value.entries, entries);
     }
 }
