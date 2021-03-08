@@ -140,15 +140,14 @@ fn process_directory(
 
 fn get_file_deltas(
     worktree: &mut Vec<Result<jwalk::DirEntry<(IndexState, WorkTreeEntry)>, jwalk::Error>>,
-    index: &Vec<DirEntry>,
+    index: &[DirEntry],
     file_changes: &Mutex<Vec<WorkTreeEntry>>,
     ) {
     let mut worktree_iter = worktree.iter_mut();
     let mut index_iter = index.iter();
     let mut worktree_file = worktree_iter.next();
     let mut index_file = index_iter.next();
-    loop {
-        if let Some(wa_file) = worktree_file.as_mut() {
+    while let Some(wa_file) = worktree_file.as_mut() {
             let mut w_file = wa_file.as_mut().unwrap();
             match index_file {
                 Some(i_file) => {
@@ -176,11 +175,8 @@ fn get_file_deltas(
                 },
             }
 
-        } else {
-            // handle index has new entries...
-            break;
         }
-    }
+    // TODO Need to handle left over index entries
 }
 
 fn is_modified(worktree_file: &mut jwalk::DirEntry<(IndexState, WorkTreeEntry)>, index_file: &DirEntry) -> bool {
