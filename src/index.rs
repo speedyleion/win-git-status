@@ -377,4 +377,24 @@ mod tests {
             ))
         );
     }
+
+    #[test]
+    fn test_get_directory_entry_at_root() {
+        let rooted_dir = "";
+        let mut map = HashMap::new();
+        Index::get_directory_entry(rooted_dir, &mut map);
+        assert_eq!(true, map.len() == 1 && map.contains_key(""));
+
+    }
+
+    #[test]
+    fn test_get_directory_3_levels_deep() {
+        let deep_dir = "1/2/3";
+        let mut map = HashMap::new();
+        Index::get_directory_entry(deep_dir, &mut map);
+
+        let directories = vec!["", "1", "1/2", "1/2/3"];
+        assert_eq!(true, map.len() == directories.len() && directories.iter().all(|d| map.contains_key(*d)));
+
+    }
 }
