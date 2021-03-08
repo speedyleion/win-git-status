@@ -151,7 +151,7 @@ fn get_file_deltas(
     let mut worktree_file = worktree_iter.next();
     let mut index_file = index_iter.next();
     loop {
-        if let Some(mut wa_file) = worktree_file.as_mut() {
+        if let Some(wa_file) = worktree_file.as_mut() {
             let mut w_file = wa_file.as_mut().unwrap();
             match index_file {
                 Some(i_file) => {
@@ -173,7 +173,11 @@ fn get_file_deltas(
                         }
                     }
                 },
-                None => w_file.client_state.state = Status::NEW,
+                None => {
+                    w_file.client_state.name = w_file.file_name.to_str().unwrap().to_string();
+                    w_file.client_state.state = Status::NEW;
+                    worktree_file = worktree_iter.next();
+                },
             }
 
         } else {
@@ -282,6 +286,26 @@ mod tests {
             name: new_file_name.to_string(),
             state: Status::NEW,
         }];
+        assert_eq!(value.entries, entries);
+    }
+
+    #[test]
+    fn test_multiple_new_files_in_worktree() {
+        let (index, temp_dir) = temp_tree(vec![Path::new("simple_file.txt")]);
+
+        // Putting them in order for the simpler assert
+        let new_file_names = vec!["a_file.txt", "z_file.txt"];
+        for name in &new_file_names {
+            let new_file = temp_dir.join(&name);
+            fs::create_dir_all(new_file.parent().unwrap()).unwrap();
+            fs::write(&new_file, "stuff").unwrap();
+        }
+
+        let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
+        let entries: Vec<WorkTreeEntry> = new_file_names.iter().map(|&n| WorkTreeEntry {
+            name: n.to_string(),
+            state: Status::NEW,
+        }).collect();
         assert_eq!(value.entries, entries);
     }
 }
