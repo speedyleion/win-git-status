@@ -75,6 +75,7 @@ fn index_has_more_deeply_nested_entries() {
     let index_file = temp.join(".git/index");
     let index = Index::new(&index_file).unwrap();
 
-    assert_eq!(index.entries.len(), 1);
+    let directories = vec!["", "dir_1", "dir_1/dir_2", "dir_1/dir_2/dir_3"];
+    assert_eq!(true, index.entries.len() == directories.len() && directories.iter().all(|k| index.entries.contains_key(*k)));
     assert_eq!(index.entries.get("dir_1/dir_2/dir_3").unwrap()[0].name, "file.txt");
 }
