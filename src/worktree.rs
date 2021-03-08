@@ -185,7 +185,13 @@ fn get_file_deltas(
             }
         }
     }
-    // TODO Need to handle left over index entries
+    while let Some(i_file) = index_file {
+        file_changes.lock().unwrap().push(WorkTreeEntry {
+            name: i_file.name.to_string(),
+            state: Status::DELETED,
+        });
+        index_file = index_iter.next();
+    }
 }
 
 fn is_modified(
@@ -332,6 +338,21 @@ mod tests {
         let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
         let entries = vec![WorkTreeEntry {
             name: "file_2.txt".to_string(),
+            state: Status::DELETED,
+        }];
+        assert_eq!(value.entries, entries);
+    }
+
+    #[test]
+    fn test_deleted_file_at_end_of_worktree() {
+        let names = vec!["file_1.txt", "file_2.txt", "foo.txt"];
+        let files = names.iter().map(|n| Path::new(n)).collect();
+        let (index, temp_dir) = temp_tree(files);
+        fs::remove_file(temp_dir.join("foo.txt")).unwrap();
+
+        let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
+        let entries = vec![WorkTreeEntry {
+            name: "foo.txt".to_string(),
             state: Status::DELETED,
         }];
         assert_eq!(value.entries, entries);
