@@ -9,8 +9,9 @@ use jwalk::WalkDirGeneric;
 use pathdiff::diff_paths;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use core::cmp::Ordering;
 
-use crate::Index;
+use crate::{Index, DirEntry};
 use std::time::SystemTime;
 
 #[derive(PartialEq, Eq, Debug)]
@@ -137,29 +138,65 @@ fn process_directory(
     let unix_path = relative_path.to_str().unwrap().replace("\\", "/");
 
     let index_dir_entry = index.entries.get(&unix_path).unwrap();
-    for child in children {
-        if let Ok(child) = child {
-            let meta = child.metadata().unwrap();
-            let mtime = meta
-                .modified()
-                .unwrap()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_secs() as u32;
-            let size = meta.len() as u32;
-            let entry = &index_dir_entry[0];
-            child.client_state.name = child.file_name.to_str().unwrap().to_string();
-            if entry.mtime != mtime || entry.size != size {
-                child.client_state.state = Status::MODIFIED;
+    get_file_deltas(children, index_dir_entry);
+}
+
+fn get_file_deltas(
+    worktree: &mut Vec<Result<jwalk::DirEntry<(IndexState, WorkTreeEntry)>, jwalk::Error>>,
+    index: &Vec<DirEntry>) {
+    let mut worktree_iter = worktree.iter_mut();
+    let mut index_iter = index.iter();
+    let mut worktree_file = worktree_iter.next();
+    let mut index_file = index_iter.next();
+    loop {
+        if let Some(mut wa_file) = worktree_file.as_mut() {
+            let mut w_file = wa_file.as_mut().unwrap();
+            match index_file {
+                Some(i_file) => {
+                    match w_file.file_name().cmp(i_file.name.as_ref()) {
+                        Ordering::Equal => {
+                            is_modified(&mut w_file, i_file);
+                            index_file = index_iter.next();
+                            worktree_file = worktree_iter.next();
+                        },
+                        Ordering::Less => {
+                            w_file.client_state.name = w_file.file_name.to_str().unwrap().to_string();
+                            w_file.client_state.state = Status::NEW;
+                            worktree_file = worktree_iter.next();
+                        }
+                        Ordering::Greater => {
+                            w_file.client_state.name = w_file.file_name.to_str().unwrap().to_string();
+                            w_file.client_state.state = Status::NEW;
+                            index_file = index_iter.next();
+                        }
+                    }
+                },
+                None => w_file.client_state.state = Status::NEW,
             }
+
+        } else {
+            // handle index has new entries...
         }
+    }
+}
+fn compare_file_names(worktree_file: jwalk::DirEntry<(IndexState, WorkTreeEntry)>, index_file: &DirEntry) {
+
+
+}
+
+fn is_modified(worktree_file: &mut jwalk::DirEntry<(IndexState, WorkTreeEntry)>, index_file: &DirEntry){
+    let meta = worktree_file.metadata().unwrap();
+    let mtime = meta.modified().unwrap().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs() as u32;
+    let size = meta.len() as u32;
+    if index_file.mtime != mtime || index_file.size != size {
+        worktree_file.client_state.name = worktree_file.file_name.to_str().unwrap().to_string();
+        worktree_file.client_state.state = Status::MODIFIED;
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::DirEntry;
     use std::fs;
     use std::time::SystemTime;
     use temp_testdir::TempDir;
