@@ -67,7 +67,7 @@ fn index_has_nested_entries_in_order() {
 
 #[test]
 fn index_has_more_deeply_nested_entries() {
-    let mut names = vec!["dir_1/dir_2/dir_3/file.txt"];
+    let names = vec!["dir_1/dir_2/dir_3/file.txt"];
     let files = names.iter().map(|n| Path::new(n)).collect();
     let temp = TempDir::default().permanent();
     let temp_path_str = temp.to_str().unwrap();

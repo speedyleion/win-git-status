@@ -126,12 +126,17 @@ fn process_directory(
             })
             .unwrap_or(false)
     });
+    children.retain(|dir_entry_result| {
+        dir_entry_result
+            .as_ref()
+            .map(|dir_entry| {
+                dir_entry.file_type().is_file()
+            })
+            .unwrap_or(false)
+    });
     let index = &read_dir_state.index;
     let relative_path = diff_paths(path, &read_dir_state.path).unwrap();
     let unix_path = relative_path.to_str().unwrap().replace("\\", "/");
-
-    println!("The entries are \"{:?}\"", index.entries);
-    println!("The path \"{:?}\"", unix_path);
 
     let index_dir_entry = index.entries.get(&unix_path).unwrap();
     for child in children {
@@ -193,7 +198,7 @@ mod tests {
                     .as_secs() as u32,
                 size: metadata.len() as u32,
                 sha: [0; 20],
-                name: file.to_str().unwrap().to_string(),
+                name: file.file_name().unwrap().to_str().unwrap().to_string(),
             });
         }
         (index, temp_dir)
