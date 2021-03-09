@@ -39,24 +39,30 @@ chosen with previous exposer to the `libgit2` api.
 
 ## Status
 I've been trying to blog a bit about the development process at
-https://speedyleion.github.io/.  This would probably give a better idea of the design progress, since the functional progress is taking a bit.
+https://speedyleion.github.io/.  This would probably give a better idea of the design progress, 
+since the functional progress is taking a bit.
 
 >Note: Since I chose to also take this opportunity to learn Rust, it means that
 > the status on this will most likely be slow as I spin up on all the nuances 
 > of Rust.
 
-Currently ``win-git-status.exe`` will produce the debug output of reading a git
-index file.  For example one could do:
+Currently ``win-git-status.exe`` will produce the debug output of comparing a repo's
+index to it's working tree. Note: The repo directory needs to be specified, and it 
+can be anywhere.
 
-    win-git-status.exe .git/index
+For example one could do:
 
-This would show the contents of the repo's index file.  This should be similar to:
+    win-git-status.exe .
 
-    git ls-files --stage
+This would show files and or directories that are modified or "new".  
+
+This currently doesn't handle significant features like; ignore files,
+the actual commit tree, or submodules
+
     
 ### Performance
-Initial timings, on this repo's index file, look promising, but 
+Initial timings, on this repo look promising, but 
 ``win-git-status`` probably isn't doing as much:
 
-- 0.090s for ``git ls-files --stage``
-- 0.060s for ``win-git-status.exe .git/index``
+- 0.097s for ``git status``
+- 0.062s for ``win-git-status.exe .``
