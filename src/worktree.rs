@@ -13,6 +13,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::{DirEntry, Index};
 use std::time::SystemTime;
+use crate::worktree::Status::NEW;
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum Status {
@@ -123,32 +124,34 @@ fn process_directory(
             })
             .unwrap_or(false)
     });
-    children.retain(|dir_entry_result| {
-        dir_entry_result
-            .as_ref()
-            .map(|dir_entry| dir_entry.file_type().is_file())
-            .unwrap_or(false)
-    });
     let index = &read_dir_state.index;
     let relative_path = diff_paths(path, &read_dir_state.path).unwrap();
     let unix_path = relative_path.to_str().unwrap().replace("\\", "/");
 
     let index_dir_entry = index.entries.get(&unix_path).unwrap();
 
-    get_file_deltas(children, index_dir_entry, &read_dir_state.changed_files);
+    get_file_deltas(children, index_dir_entry, index, &read_dir_state.changed_files);
 }
 
 fn get_file_deltas(
     worktree: &mut Vec<Result<jwalk::DirEntry<(IndexState, bool)>, jwalk::Error>>,
-    index: &[DirEntry],
+    index_entry: &[DirEntry],
+    index: &Arc<Index>,
     file_changes: &Mutex<Vec<WorkTreeEntry>>,
 ) {
     let mut worktree_iter = worktree.iter_mut();
-    let mut index_iter = index.iter();
+    let mut index_iter = index_entry.iter();
     let mut worktree_file = worktree_iter.next();
     let mut index_file = index_iter.next();
     while let Some(wa_file) = worktree_file.as_mut() {
         let mut w_file = wa_file.as_mut().unwrap();
+        if w_file.file_type().is_dir() {
+            if let Some(entry) = process_directory_delta(w_file, index) {
+                file_changes.lock().unwrap().push(entry);
+            }
+            worktree_file = worktree_iter.next();
+            continue;
+        }
         match index_file {
             Some(i_file) => match w_file.file_name().cmp(i_file.name.as_ref()) {
                 Ordering::Equal => {
@@ -193,7 +196,6 @@ fn get_file_deltas(
         index_file = index_iter.next();
     }
 }
-
 fn is_modified(
     worktree_file: &mut jwalk::DirEntry<(IndexState, bool)>,
     index_file: &DirEntry,
@@ -211,6 +213,20 @@ fn is_modified(
         modified = true;
     }
     modified
+}
+
+fn process_directory_delta(dir_entry: &mut jwalk::DirEntry<(IndexState, bool)>,
+                           index: &Arc<Index>) -> Option<WorkTreeEntry>{
+    let name = dir_entry.file_name.to_str().unwrap().to_string();
+    println!("{:?}", dir_entry.parent_path());
+    println!("{:?}", dir_entry.depth);
+    if !index.entries.contains_key(name.as_str()) {
+        dir_entry.read_children_path = None;
+        let status_entry = WorkTreeEntry{ name: name, state: Status::NEW};
+        return Some(status_entry)
+    }
+    None
+
 }
 
 #[cfg(test)]
