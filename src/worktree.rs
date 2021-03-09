@@ -137,7 +137,7 @@ fn get_file_deltas(
     index_entry: &[DirEntry],
     index: &Arc<Index>,
     file_changes: &Mutex<Vec<WorkTreeEntry>>,
-    relative_path: &String,
+    relative_path: &str,
 ) {
     let mut worktree_iter = worktree.iter_mut();
     let mut index_iter = index_entry.iter();
@@ -215,10 +215,9 @@ fn is_modified(
     modified
 }
 
-fn get_full_file_name_with_path(file_entry: &jwalk::DirEntry<(IndexState, bool)>, relative_root_path: &String) -> String{
+fn get_full_file_name_with_path(file_entry: &jwalk::DirEntry<(IndexState, bool)>, relative_root_path: &str) -> String{
     let file_name = file_entry.file_name.to_str().unwrap();
-    let full_name = [relative_root_path, file_name].join("/");
-    full_name
+    [relative_root_path, file_name].join("/")
 
 }
 fn process_directory_delta(dir_entry: &mut jwalk::DirEntry<(IndexState, bool)>,
