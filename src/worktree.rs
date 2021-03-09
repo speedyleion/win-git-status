@@ -129,7 +129,13 @@ fn process_directory(
 
     let index_dir_entry = index.entries.get(&unix_path).unwrap();
 
-    get_file_deltas(children, index_dir_entry, index, &read_dir_state.changed_files, &unix_path);
+    get_file_deltas(
+        children,
+        index_dir_entry,
+        index,
+        &read_dir_state.changed_files,
+        &unix_path,
+    );
 }
 
 fn get_file_deltas(
@@ -215,13 +221,17 @@ fn is_modified(
     modified
 }
 
-fn get_full_file_name_with_path(file_entry: &jwalk::DirEntry<(IndexState, bool)>, relative_root_path: &str) -> String{
+fn get_full_file_name_with_path(
+    file_entry: &jwalk::DirEntry<(IndexState, bool)>,
+    relative_root_path: &str,
+) -> String {
     let file_name = file_entry.file_name.to_str().unwrap();
     [relative_root_path, file_name].join("/")
-
 }
-fn process_directory_delta(dir_entry: &mut jwalk::DirEntry<(IndexState, bool)>,
-                           index: &Arc<Index>) -> Option<WorkTreeEntry>{
+fn process_directory_delta(
+    dir_entry: &mut jwalk::DirEntry<(IndexState, bool)>,
+    index: &Arc<Index>,
+) -> Option<WorkTreeEntry> {
     let path = dir_entry.path();
     let root = path.ancestors().nth(dir_entry.depth).unwrap();
     let relative_path = diff_paths(dir_entry.path(), root).unwrap();
@@ -232,11 +242,13 @@ fn process_directory_delta(dir_entry: &mut jwalk::DirEntry<(IndexState, bool)>,
 
         let mut name = get_full_file_name_with_path(&dir_entry, &unix_path);
         name.push('/');
-        let status_entry = WorkTreeEntry{name, state: Status::NEW};
-        return Some(status_entry)
+        let status_entry = WorkTreeEntry {
+            name,
+            state: Status::NEW,
+        };
+        return Some(status_entry);
     }
     None
-
 }
 
 #[cfg(test)]
