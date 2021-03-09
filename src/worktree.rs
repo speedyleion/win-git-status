@@ -226,7 +226,13 @@ fn get_full_file_name_with_path(
     relative_root_path: &str,
 ) -> String {
     let file_name = file_entry.file_name.to_str().unwrap();
-    [relative_root_path, file_name].join("/")
+
+    // Looks like join won't strip out empty strings.
+    if relative_root_path.is_empty() {
+        file_name.to_string()
+    } else {
+        [relative_root_path, file_name].join("/")
+    }
 }
 fn process_directory_delta(
     dir_entry: &mut jwalk::DirEntry<(IndexState, bool)>,
