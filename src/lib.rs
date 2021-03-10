@@ -6,7 +6,7 @@
  */
 mod direntry;
 mod index;
-mod worktree;
+pub mod worktree;
 
 pub use direntry::DirEntry;
 pub use index::Index;
