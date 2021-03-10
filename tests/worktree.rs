@@ -6,11 +6,11 @@
  */
 
 extern crate win_git_status;
+use std::fs;
 use std::path::Path;
 use temp_testdir::TempDir;
-use win_git_status::{Index, WorkTree};
 use win_git_status::worktree::{Status, WorkTreeEntry};
-use std::fs;
+use win_git_status::{Index, WorkTree};
 
 mod common;
 
@@ -27,7 +27,11 @@ fn worktree_diff_with_submodule() {
     let sub_files = sub_names.iter().map(|n| Path::new(n)).collect();
     common::test_repo(sub_repo.to_str().unwrap(), sub_files);
 
-    common::add_submodule(super_repo.to_str().unwrap(), sub_repo.to_str().unwrap(), "sub_repo_dir");
+    common::add_submodule(
+        super_repo.to_str().unwrap(),
+        sub_repo.to_str().unwrap(),
+        "sub_repo_dir",
+    );
 
     let index_file = super_repo.join(".git/index");
     let index = Index::new(&index_file).unwrap();
@@ -49,7 +53,11 @@ fn worktree_diff_with_dirty_submodule() {
     let sub_files = sub_names.iter().map(|n| Path::new(n)).collect();
     common::test_repo(sub_repo.to_str().unwrap(), sub_files);
 
-    common::add_submodule(super_repo.to_str().unwrap(), sub_repo.to_str().unwrap(), "sub_repo_dir");
+    common::add_submodule(
+        super_repo.to_str().unwrap(),
+        sub_repo.to_str().unwrap(),
+        "sub_repo_dir",
+    );
 
     let new_sub_repo_file = super_repo.join("sub_repo_dir/new_file.txt");
     fs::write(&new_sub_repo_file, "stuff").unwrap();

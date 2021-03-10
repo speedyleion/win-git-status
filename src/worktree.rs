@@ -6,14 +6,14 @@
  */
 
 use core::cmp::Ordering;
-use jwalk::{WalkDirGeneric, Parallelism};
+use jwalk::{Parallelism, WalkDirGeneric};
 use pathdiff::diff_paths;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use crate::{DirEntry, Index};
-use std::time::SystemTime;
 use std::fs;
+use std::time::SystemTime;
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum Status {
@@ -72,7 +72,11 @@ impl WorkTree {
     /// * `path` - The path to a git repo.  This logic will _not_ search up parent directories for
     ///     a git repo
     /// * `index` - The index to compare against
-    pub fn diff_against_index(path: &Path, index: Index, root: bool) -> Result<WorkTree, WorkTreeError> {
+    pub fn diff_against_index(
+        path: &Path,
+        index: Index,
+        root: bool,
+    ) -> Result<WorkTree, WorkTreeError> {
         let changed_files = Arc::new(Mutex::new(vec![]));
         let entries = Arc::clone(&changed_files);
 
@@ -83,8 +87,8 @@ impl WorkTree {
         };
 
         let parallelism = match root {
-            true =>  Parallelism::RayonDefaultPool,
-            false =>  Parallelism::Serial,
+            true => Parallelism::RayonDefaultPool,
+            false => Parallelism::Serial,
         };
 
         let walk_dir = WalkDirGeneric::<(IndexState, bool)>::new(path)
@@ -226,18 +230,20 @@ fn get_relative_entry_path_name(entry: &jwalk::DirEntry<(IndexState, bool)>) -> 
 fn process_new_item(
     dir_entry: &mut jwalk::DirEntry<(IndexState, bool)>,
     index: &Arc<Index>,
-    ) -> Option<WorkTreeEntry> {
-
+) -> Option<WorkTreeEntry> {
     let mut name = get_relative_entry_path_name(dir_entry);
     if dir_entry.file_type.is_dir() {
         if index.entries.contains_key(&name) {
-            return None
+            return None;
         }
-    dir_entry.read_children_path = None;
-    name.push('/');
+        dir_entry.read_children_path = None;
+        name.push('/');
     }
 
-    Some(WorkTreeEntry{name, state: Status::NEW})
+    Some(WorkTreeEntry {
+        name,
+        state: Status::NEW,
+    })
 }
 
 fn lookup_git_link(git_link: &Path) -> Result<String, Box<dyn std::error::Error + 'static>> {
@@ -245,9 +251,7 @@ fn lookup_git_link(git_link: &Path) -> Result<String, Box<dyn std::error::Error 
     let link = contents.split(' ').last().unwrap().to_string();
     Ok(link)
 }
-fn submodule_status(
-    dir_entry: &mut jwalk::DirEntry<(IndexState, bool)>,
-) -> Option<WorkTreeEntry> {
+fn submodule_status(dir_entry: &mut jwalk::DirEntry<(IndexState, bool)>) -> Option<WorkTreeEntry> {
     let path = dir_entry.path();
     let index_file = lookup_git_link(&path.join(".git")).unwrap();
     let index_file = path.join(index_file);
@@ -261,7 +265,10 @@ fn submodule_status(
     let mut name = get_relative_entry_path_name(dir_entry);
     name.push('/');
 
-    Some(WorkTreeEntry{name, state: Status::MODIFIED})
+    Some(WorkTreeEntry {
+        name,
+        state: Status::MODIFIED,
+    })
 }
 
 fn process_tracked_item(
@@ -276,7 +283,10 @@ fn process_tracked_item(
 
     if is_modified(dir_entry, index_entry) {
         let name = get_relative_entry_path_name(dir_entry);
-        return Some(WorkTreeEntry{name, state: Status::MODIFIED});
+        return Some(WorkTreeEntry {
+            name,
+            state: Status::MODIFIED,
+        });
     }
     None
 }

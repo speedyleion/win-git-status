@@ -4,7 +4,7 @@
  *    (See accompanying file LICENSE or copy at
  *          https://www.boost.org/LICENSE_1_0.txt)
  */
-use git2::{Repository, Signature, Time, SubmoduleUpdateOptions};
+use git2::{Repository, Signature, SubmoduleUpdateOptions, Time};
 use std::fs;
 use std::path::Path;
 
@@ -38,7 +38,9 @@ pub fn test_repo(path: &str, files: Vec<&Path>) -> () {
 
 pub fn add_submodule(path: &str, submodule_url: &str, submodule_path: &str) -> () {
     let repo = Repository::init(path).unwrap();
-    let mut submodule = repo.submodule(submodule_url, Path::new(submodule_path), true).unwrap();
+    let mut submodule = repo
+        .submodule(submodule_url, Path::new(submodule_path), true)
+        .unwrap();
     let mut submodule_options = SubmoduleUpdateOptions::new();
     submodule.clone(Some(&mut submodule_options)).unwrap();
     submodule.add_finalize().unwrap();
@@ -57,5 +59,6 @@ pub fn add_submodule(path: &str, submodule_url: &str, submodule_path: &str) -> (
         "Adding submodule",
         &tree,
         &[&head],
-    ).unwrap();
+    )
+    .unwrap();
 }
