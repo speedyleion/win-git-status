@@ -142,7 +142,6 @@ fn process_directory(
         index_dir_entry,
         index,
         &read_dir_state.changed_files,
-        &unix_path,
     );
 }
 
@@ -151,7 +150,6 @@ fn get_file_deltas(
     index_entry: &[DirEntry],
     index: &Arc<Index>,
     file_changes: &Mutex<Vec<WorkTreeEntry>>,
-    relative_path: &str,
 ) {
     let mut worktree_iter = worktree.iter_mut();
     let mut index_iter = index_entry.iter();
@@ -183,10 +181,9 @@ fn get_file_deltas(
                 }
             },
             None => {
-                file_changes.lock().unwrap().push(WorkTreeEntry {
-                    name: get_full_file_name_with_path(&w_file, relative_path),
-                    state: Status::NEW,
-                });
+                if let Some(entry) = process_new_item(w_file, index) {
+                    file_changes.lock().unwrap().push(entry);
+                }
                 worktree_file = worktree_iter.next();
             }
         }
@@ -217,20 +214,6 @@ fn is_modified(
         modified = true;
     }
     modified
-}
-
-fn get_full_file_name_with_path(
-    file_entry: &jwalk::DirEntry<(IndexState, bool)>,
-    relative_root_path: &str,
-) -> String {
-    let file_name = file_entry.file_name.to_str().unwrap();
-
-    // Looks like join won't strip out empty strings.
-    if relative_root_path.is_empty() {
-        file_name.to_string()
-    } else {
-        [relative_root_path, file_name].join("/")
-    }
 }
 
 fn get_relative_entry_path_name(entry: &jwalk::DirEntry<(IndexState, bool)>) -> String {
