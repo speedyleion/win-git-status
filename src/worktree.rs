@@ -13,6 +13,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::{DirEntry, Index};
 use std::time::SystemTime;
+use std::fs;
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum Status {
@@ -249,6 +250,28 @@ fn process_new_item(
     Some(WorkTreeEntry{name, state: Status::NEW})
 }
 
+fn lookup_git_link(git_link: &Path) -> Result<String, Box<dyn std::error::Error + 'static>> {
+    let contents: String = String::from_utf8_lossy(&fs::read(git_link)?).parse()?;
+    let link = contents.split(' ').last().unwrap().to_string();
+    Ok(link)
+}
+fn submodule_status(
+    dir_entry: &mut jwalk::DirEntry<(IndexState, bool)>,
+) -> Option<WorkTreeEntry> {
+    let path = dir_entry.path();
+    let index_file = lookup_git_link(&path.join(".git")).unwrap();
+    let index_file = path.join(index_file);
+    let index_file = index_file.join("index");
+    let index = Index::new(&index_file).unwrap();
+
+    let value = WorkTree::diff_against_index(&path, index).unwrap();
+    if value.entries.is_empty() {
+        return None;
+    }
+    let name = get_relative_entry_path_name(dir_entry);
+    return Some(WorkTreeEntry{name, state: Status::MODIFIED});
+}
+
 fn process_tracked_item(
     dir_entry: &mut jwalk::DirEntry<(IndexState, bool)>,
     index_entry: &DirEntry,
@@ -256,7 +279,7 @@ fn process_tracked_item(
     if dir_entry.file_type.is_dir() {
         // Be sure and don't walk into submodules from here
         dir_entry.read_children_path = None;
-        return None
+        return submodule_status(dir_entry);
     }
 
     if is_modified(dir_entry, index_entry) {
