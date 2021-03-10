@@ -261,7 +261,7 @@ fn submodule_status(
     let mut name = get_relative_entry_path_name(dir_entry);
     name.push('/');
 
-    return Some(WorkTreeEntry{name, state: Status::MODIFIED});
+    Some(WorkTreeEntry{name, state: Status::MODIFIED})
 }
 
 fn process_tracked_item(
