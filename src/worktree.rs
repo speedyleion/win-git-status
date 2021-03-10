@@ -275,7 +275,9 @@ fn submodule_status(
     if value.entries.is_empty() {
         return None;
     }
-    let name = get_relative_entry_path_name(dir_entry);
+    let mut name = get_relative_entry_path_name(dir_entry);
+    name.push('/');
+
     return Some(WorkTreeEntry{name, state: Status::MODIFIED});
 }
 

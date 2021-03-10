@@ -51,7 +51,7 @@ fn worktree_diff_with_dirty_submodule() {
 
     common::add_submodule(super_repo.to_str().unwrap(), sub_repo.to_str().unwrap(), "sub_repo_dir");
 
-    let new_sub_repo_file = sub_repo.join("new_file.txt");
+    let new_sub_repo_file = super_repo.join("sub_repo_dir/new_file.txt");
     fs::write(&new_sub_repo_file, "stuff").unwrap();
 
     let index_file = super_repo.join(".git/index");
@@ -59,7 +59,7 @@ fn worktree_diff_with_dirty_submodule() {
 
     let value = WorkTree::diff_against_index(&super_repo, index, true).unwrap();
     let entries = vec![WorkTreeEntry {
-        name: "sub_repo/".to_string(),
+        name: "sub_repo_dir/".to_string(),
         state: Status::MODIFIED,
     }];
 
