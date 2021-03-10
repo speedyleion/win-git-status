@@ -6,7 +6,6 @@
  */
 
 extern crate win_git_status;
-use std::collections::HashMap;
 use std::path::Path;
 use temp_testdir::TempDir;
 use win_git_status::{Index, WorkTree};

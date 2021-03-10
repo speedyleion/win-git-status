@@ -150,31 +150,20 @@ fn get_file_deltas(
     let mut worktree_file = worktree_iter.next();
     let mut index_file = index_iter.next();
     while let Some(wa_file) = worktree_file.as_mut() {
-        let mut w_file = wa_file.as_mut().unwrap();
-        if w_file.file_type().is_dir() {
-            if let Some(entry) = process_directory_delta(w_file, index) {
-                file_changes.lock().unwrap().push(entry);
-            }
-            worktree_file = worktree_iter.next();
-            continue;
-        }
+        let w_file = wa_file.as_mut().unwrap();
         match index_file {
             Some(i_file) => match w_file.file_name().cmp(i_file.name.as_ref()) {
                 Ordering::Equal => {
-                    if is_modified(&mut w_file, i_file) {
-                        file_changes.lock().unwrap().push(WorkTreeEntry {
-                            name: get_full_file_name_with_path(&w_file, relative_path),
-                            state: Status::MODIFIED,
-                        });
+                    if let Some(entry) = process_tracked_item(w_file, i_file) {
+                        file_changes.lock().unwrap().push(entry);
                     }
                     index_file = index_iter.next();
                     worktree_file = worktree_iter.next();
                 }
                 Ordering::Less => {
-                    file_changes.lock().unwrap().push(WorkTreeEntry {
-                        name: get_full_file_name_with_path(&w_file, relative_path),
-                        state: Status::NEW,
-                    });
+                    if let Some(entry) = process_new_item(w_file, index) {
+                        file_changes.lock().unwrap().push(entry);
+                    }
                     worktree_file = worktree_iter.next();
                 }
                 Ordering::Greater => {
@@ -202,6 +191,7 @@ fn get_file_deltas(
         index_file = index_iter.next();
     }
 }
+
 fn is_modified(
     worktree_file: &mut jwalk::DirEntry<(IndexState, bool)>,
     index_file: &DirEntry,
@@ -234,25 +224,44 @@ fn get_full_file_name_with_path(
         [relative_root_path, file_name].join("/")
     }
 }
-fn process_directory_delta(
+
+fn get_relative_entry_path_name(entry: &jwalk::DirEntry<(IndexState, bool)>) -> String {
+    let path = entry.path();
+    let root = path.ancestors().nth(entry.depth).unwrap();
+    let relative_path = diff_paths(entry.path(), root).unwrap();
+    relative_path.to_str().unwrap().replace("\\", "/")
+}
+
+fn process_new_item(
     dir_entry: &mut jwalk::DirEntry<(IndexState, bool)>,
     index: &Arc<Index>,
+    ) -> Option<WorkTreeEntry> {
+
+    let mut name = get_relative_entry_path_name(dir_entry);
+    if dir_entry.file_type.is_dir() {
+        if index.entries.contains_key(&name) {
+            return None
+        }
+    dir_entry.read_children_path = None;
+    name.push('/');
+    }
+
+    Some(WorkTreeEntry{name, state: Status::NEW})
+}
+
+fn process_tracked_item(
+    dir_entry: &mut jwalk::DirEntry<(IndexState, bool)>,
+    index_entry: &DirEntry,
 ) -> Option<WorkTreeEntry> {
-    let path = dir_entry.path();
-    let root = path.ancestors().nth(dir_entry.depth).unwrap();
-    let relative_path = diff_paths(dir_entry.path(), root).unwrap();
-    let unix_path = relative_path.to_str().unwrap().replace("\\", "/");
-
-    if !index.entries.contains_key(&unix_path) {
+    if dir_entry.file_type.is_dir() {
+        // Be sure and don't walk into submodules from here
         dir_entry.read_children_path = None;
+        return None
+    }
 
-        let mut name = get_full_file_name_with_path(&dir_entry, &unix_path);
-        name.push('/');
-        let status_entry = WorkTreeEntry {
-            name,
-            state: Status::NEW,
-        };
-        return Some(status_entry);
+    if is_modified(dir_entry, index_entry) {
+        let name = get_relative_entry_path_name(dir_entry);
+        return Some(WorkTreeEntry{name, state: Status::MODIFIED});
     }
     None
 }
