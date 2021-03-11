@@ -7,7 +7,7 @@
 
 use std::path::Path;
 use std::collections::HashMap;
-use ntapi::ntioapi::NtQueryDirectoryFile;
+use ntapi::ntioapi::{NtQueryDirectoryFile, IO_STATUS_BLOCK, FileFullDirectoryInformation};
 use winapi::um::fileapi::{CreateFileA, OPEN_EXISTING};
 use std::ffi::CString;
 use winapi::um::winnt::{FILE_LIST_DIRECTORY, FILE_SHARE_DELETE, HANDLE, FILE_SHARE_WRITE, FILE_SHARE_READ};
@@ -41,26 +41,17 @@ impl DirectoryStat {
 
     fn get_dir_stats(path: &Path) -> HashMap<String, FileStat> {
         let mut file_stats = HashMap::new();
-        // let foo = unsafe { NtQueryDirectoryFile()};
+        let handle = DirectoryStat::get_directory_handle(path);
+        let mut io_block: IO_STATUS_BLOCK = unsafe {std::mem::zeroed()};
+        let io_ptr: *mut IO_STATUS_BLOCK = &mut io_block as *mut _;
+        let foo = unsafe { NtQueryDirectoryFile(handle, std::ptr::null_mut(), None, std::ptr::null_mut(), io_ptr, buffer, buffer_size,
+                                                FileFullDirectoryInformation, 1, std::ptr::null_mut(), 0)};
         file_stats
     }
 
     fn get_directory_handle(path: &Path) -> HANDLE {
-        //let c_to_print = CString::new("Hello, world!").expect("CString::new failed");
-        //unsafe {
-        //    my_printer(c_to_print.as_ptr());
-        //}
         let name= CString::new(path.to_str().unwrap()).unwrap();
-        // lpFileName: LPCSTR,
-        // dwDesiredAccess: DWORD,
-        // dwShareMode: DWORD,
-        // lpSecurityAttributes: LPSECURITY_ATTRIBUTES,
-        // dwCreationDisposition: DWORD,
-        // dwFlagsAndAttributes: DWORD,
-        // hTemplateFile: HANDLE,
-        // ) -> HANDLE;
         let foo = unsafe {CreateFileA(name.as_ptr(), FILE_LIST_DIRECTORY, FILE_SHARE_WRITE | FILE_SHARE_READ | FILE_SHARE_DELETE, std::ptr::null_mut(), OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, std::ptr::null_mut())};
-
         foo
     }
 }
