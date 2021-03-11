@@ -6,7 +6,9 @@
  */
 
 use std::path::Path;
+use std::collections::HashMap;
 
+#[derive(PartialEq, Eq, Debug, Default, Clone)]
 pub struct FileStat {
     pub mtime: u32,
     pub size: u32,
@@ -14,8 +16,8 @@ pub struct FileStat {
 
 #[derive(PartialEq, Eq, Debug, Default, Clone)]
 pub struct DirectoryStat {
-    pub directory: Path,
-    pub file_stats: Vec<FileStat>,
+    pub directory: String,
+    pub file_stats: HashMap<String, FileStat>,
 }
 
 impl DirectoryStat {
@@ -25,8 +27,12 @@ impl DirectoryStat {
     ///
     /// * `path` - The path to a directory to get file stats fro
     pub fn new(path: &Path) -> DirectoryStat {
-        let dirstat = DirectoryStat{directory: path.clone(), file_stats:vec![]};
+        let mut file_stats = HashMap::new();
+        let stat = FileStat{mtime: 0, size: 0};
+        file_stats.insert("what".to_string(), stat);
 
+
+        let dirstat = DirectoryStat{directory: path.to_str().unwrap().to_string(), file_stats};
         dirstat
     }
 }
@@ -35,6 +41,7 @@ impl DirectoryStat {
 mod tests {
     use super::*;
     use temp_testdir::TempDir;
+    use std::fs;
 
     // Test helper function to build up a temporary directory of `files`.  All files will have the
     // contents of their name.
@@ -55,7 +62,7 @@ mod tests {
         let files = names.iter().map(|n| Path::new(n)).collect();
         let temp_dir = temp_tree(files);
 
-        let dirstat = DirectoryStat::new(temp_dir);
+        let dirstat = DirectoryStat::new(&temp_dir);
         assert_eq!(
             dirstat.file_stats.len(),
             1
