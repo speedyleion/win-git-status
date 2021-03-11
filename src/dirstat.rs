@@ -7,6 +7,11 @@
 
 use std::path::Path;
 use std::collections::HashMap;
+use ntapi::ntioapi::NtQueryDirectoryFile;
+use winapi::um::fileapi::{CreateFileA, OPEN_EXISTING};
+use std::ffi::CString;
+use winapi::um::winnt::{FILE_LIST_DIRECTORY, FILE_SHARE_DELETE, HANDLE, FILE_SHARE_WRITE, FILE_SHARE_READ};
+use winapi::um::winbase::FILE_FLAG_BACKUP_SEMANTICS;
 
 #[derive(PartialEq, Eq, Debug, Default, Clone)]
 pub struct FileStat {
@@ -27,13 +32,36 @@ impl DirectoryStat {
     ///
     /// * `path` - The path to a directory to get file stats fro
     pub fn new(path: &Path) -> DirectoryStat {
-        let mut file_stats = HashMap::new();
-        let stat = FileStat{mtime: 0, size: 0};
-        file_stats.insert("what".to_string(), stat);
+        let mut file_stats = DirectoryStat::get_dir_stats(path);
 
 
         let dirstat = DirectoryStat{directory: path.to_str().unwrap().to_string(), file_stats};
         dirstat
+    }
+
+    fn get_dir_stats(path: &Path) -> HashMap<String, FileStat> {
+        let mut file_stats = HashMap::new();
+        // let foo = unsafe { NtQueryDirectoryFile()};
+        file_stats
+    }
+
+    fn get_directory_handle(path: &Path) -> HANDLE {
+        //let c_to_print = CString::new("Hello, world!").expect("CString::new failed");
+        //unsafe {
+        //    my_printer(c_to_print.as_ptr());
+        //}
+        let name= CString::new(path.to_str().unwrap()).unwrap();
+        // lpFileName: LPCSTR,
+        // dwDesiredAccess: DWORD,
+        // dwShareMode: DWORD,
+        // lpSecurityAttributes: LPSECURITY_ATTRIBUTES,
+        // dwCreationDisposition: DWORD,
+        // dwFlagsAndAttributes: DWORD,
+        // hTemplateFile: HANDLE,
+        // ) -> HANDLE;
+        let foo = unsafe {CreateFileA(name.as_ptr(), FILE_LIST_DIRECTORY, FILE_SHARE_WRITE | FILE_SHARE_READ | FILE_SHARE_DELETE, std::ptr::null_mut(), OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, std::ptr::null_mut())};
+
+        foo
     }
 }
 
@@ -56,7 +84,7 @@ mod tests {
     }
 
     #[test]
-    fn test_load_dir_stat() {
+    fn test_one_entry_in_dir_stat() {
 
         let names = vec!["one"];
         let files = names.iter().map(|n| Path::new(n)).collect();
@@ -66,6 +94,17 @@ mod tests {
         assert_eq!(
             dirstat.file_stats.len(),
             1
+        );
+    }
+
+    #[test]
+    fn test_no_entries_in_dir_stat() {
+        let temp_dir = temp_tree(vec![]);
+
+        let dirstat = DirectoryStat::new(&temp_dir);
+        assert_eq!(
+            dirstat.file_stats.len(),
+            0
         );
     }
 }
