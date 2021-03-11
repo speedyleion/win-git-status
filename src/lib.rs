@@ -6,6 +6,7 @@
  */
 mod direntry;
 mod index;
+mod dirstat;
 pub mod worktree;
 
 pub use direntry::DirEntry;
