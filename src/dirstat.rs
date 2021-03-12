@@ -14,6 +14,7 @@ use winapi::um::winnt::{FILE_LIST_DIRECTORY, FILE_SHARE_DELETE, HANDLE, FILE_SHA
 use winapi::um::winbase::FILE_FLAG_BACKUP_SEMANTICS;
 use winapi::um::handleapi::CloseHandle;
 use memoffset::offset_of;
+use std::char::decode_utf16;
 
 #[derive(PartialEq, Eq, Debug, Default, Clone)]
 pub struct FileStat {
@@ -66,8 +67,7 @@ impl DirectoryStat {
                     let mtime = unsafe { *file_info.LastWriteTime.QuadPart() as u32 };
                     let size = unsafe { *file_info.EndOfFile.QuadPart() as u32 };
 
-                    let name_end = name_offset + file_info.FileNameLength as usize;
-                    let name = String::from_utf8_lossy(&buffer[name_offset..name_end]).into_owned();
+                    let name = DirectoryStat::read_string(&buffer[name_offset..], file_info.FileNameLength as usize).unwrap();
                     file_stats.insert(name, FileStat { mtime, size });
                 }
                 if file_info.NextEntryOffset  == 0 {
@@ -87,6 +87,12 @@ impl DirectoryStat {
         handle
     }
 
+    fn read_string(slice: &[u8], size: usize) -> Option<String> {
+        let (_front, slice, _back) = unsafe {
+            slice.align_to::<u16>()
+        };
+        String::from_utf16(&slice[..size/2]).ok()
+    }
 }
 
 #[cfg(test)]
@@ -94,6 +100,7 @@ mod tests {
     use super::*;
     use temp_testdir::TempDir;
     use std::fs;
+    use std::time::SystemTime;
 
     // Test helper function to build up a temporary directory of `files`.  All files will have the
     // contents of their name.
@@ -119,6 +126,19 @@ mod tests {
             dirstat.file_stats.len(),
             1
         );
+
+
+        let file = temp_dir.join("one");
+        let meta = file.metadata().unwrap();
+        let mtime = meta
+            .modified()
+            .unwrap()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as u32;
+        let size = meta.len() as u32;
+        println!{"{:?}", dirstat.file_stats};
+        assert_eq!(dirstat.file_stats.get("one").unwrap(), &FileStat{mtime, size});
     }
 
     #[test]
