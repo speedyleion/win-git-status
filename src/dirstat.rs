@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use ntapi::ntioapi::{NtQueryDirectoryFile, IO_STATUS_BLOCK, FileFullDirectoryInformation, FILE_FULL_DIR_INFORMATION};
 use winapi::um::fileapi::{CreateFileA, OPEN_EXISTING};
 use std::ffi::CString;
-use winapi::um::winnt::{FILE_LIST_DIRECTORY, FILE_SHARE_DELETE, HANDLE, FILE_SHARE_WRITE, FILE_SHARE_READ, FILE_ATTRIBUTE_DIRECTORY};
+use winapi::um::winnt::{FILE_LIST_DIRECTORY, FILE_SHARE_DELETE, HANDLE, FILE_SHARE_WRITE, FILE_SHARE_READ, FILE_ATTRIBUTE_DIRECTORY, LARGE_INTEGER};
 use winapi::um::winbase::FILE_FLAG_BACKUP_SEMANTICS;
 use winapi::um::handleapi::CloseHandle;
 use memoffset::offset_of;
@@ -64,8 +64,8 @@ impl DirectoryStat {
                 let name_offset = name_member_offset + offset;
                 offset += file_info.NextEntryOffset as usize;
                 if file_info.FileAttributes & FILE_ATTRIBUTE_DIRECTORY == 0 {
-                    let mtime = unsafe { *file_info.LastWriteTime.QuadPart() as u32 };
-                    let size = unsafe { *file_info.EndOfFile.QuadPart() as u32 };
+                    let mtime = DirectoryStat::windows_time_to_git_time(file_info.LastWriteTime);
+                    let size = unsafe {*file_info.EndOfFile.QuadPart() as u32};
 
                     let name = DirectoryStat::read_string(&buffer[name_offset..], file_info.FileNameLength as usize).unwrap();
                     file_stats.insert(name, FileStat { mtime, size });
@@ -92,6 +92,13 @@ impl DirectoryStat {
             slice.align_to::<u16>()
         };
         String::from_utf16(&slice[..size/2]).ok()
+    }
+
+    fn windows_time_to_git_time(time: LARGE_INTEGER) -> u32 {
+        let mut windows_time = unsafe { *time.QuadPart() };
+        windows_time -= 116444736000000000; /* Windows to Unix Epoch conversion */
+        windows_time /= 10000000;
+        windows_time as u32
     }
 }
 
@@ -137,7 +144,6 @@ mod tests {
             .unwrap()
             .as_secs() as u32;
         let size = meta.len() as u32;
-        println!{"{:?}", dirstat.file_stats};
         assert_eq!(dirstat.file_stats.get("one").unwrap(), &FileStat{mtime, size});
     }
 
