@@ -79,8 +79,7 @@ impl DirectoryStat {
 
     fn get_directory_handle(path: &Path) -> HANDLE {
         let name= CString::new(path.to_str().unwrap()).unwrap();
-        let handle = unsafe {CreateFileA(name.as_ptr(), FILE_LIST_DIRECTORY, FILE_SHARE_WRITE | FILE_SHARE_READ | FILE_SHARE_DELETE, std::ptr::null_mut(), OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, std::ptr::null_mut())};
-        handle
+        unsafe {CreateFileA(name.as_ptr(), FILE_LIST_DIRECTORY, FILE_SHARE_WRITE | FILE_SHARE_READ | FILE_SHARE_DELETE, std::ptr::null_mut(), OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, std::ptr::null_mut())}
     }
 
     fn read_string(slice: &[u8], size: usize) -> Option<String> {

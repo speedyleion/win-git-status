@@ -207,7 +207,7 @@ fn is_modified(
     index_file: &DirEntry,
     stats: &mut Option<DirectoryStat>,
 ) -> bool {
-    if let None = stats {
+    if stats.is_none() {
         *stats = Some(DirectoryStat::new(worktree_file.parent_path()));
     }
     let dir_stat = stats.as_ref().unwrap();
