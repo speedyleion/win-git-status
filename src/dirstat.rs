@@ -14,7 +14,6 @@ use winapi::um::winnt::{FILE_LIST_DIRECTORY, FILE_SHARE_DELETE, HANDLE, FILE_SHA
 use winapi::um::winbase::FILE_FLAG_BACKUP_SEMANTICS;
 use winapi::um::handleapi::CloseHandle;
 use memoffset::offset_of;
-use std::char::decode_utf16;
 
 #[derive(PartialEq, Eq, Debug, Default, Clone)]
 pub struct FileStat {
@@ -35,9 +34,7 @@ impl DirectoryStat {
     ///
     /// * `path` - The path to a directory to get file stats fro
     pub fn new(path: &Path) -> DirectoryStat {
-        let mut file_stats = DirectoryStat::get_dir_stats(path);
-
-
+        let file_stats = DirectoryStat::get_dir_stats(path);
         let dirstat = DirectoryStat{directory: path.to_str().unwrap().to_string(), file_stats};
         dirstat
     }
@@ -59,7 +56,7 @@ impl DirectoryStat {
             }
 
             loop {
-                let (head, body, _tail) = unsafe { buffer[offset..].align_to::<FILE_FULL_DIR_INFORMATION>() };
+                let (_head, body, _tail) = unsafe { buffer[offset..].align_to::<FILE_FULL_DIR_INFORMATION>() };
                 let file_info = &body[0];
                 let name_offset = name_member_offset + offset;
                 offset += file_info.NextEntryOffset as usize;
