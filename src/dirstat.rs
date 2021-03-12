@@ -7,11 +7,13 @@
 
 use std::path::Path;
 use std::collections::HashMap;
-use ntapi::ntioapi::{NtQueryDirectoryFile, IO_STATUS_BLOCK, FileFullDirectoryInformation};
+use ntapi::ntioapi::{NtQueryDirectoryFile, IO_STATUS_BLOCK, FileFullDirectoryInformation, FILE_FULL_DIR_INFORMATION};
 use winapi::um::fileapi::{CreateFileA, OPEN_EXISTING};
 use std::ffi::CString;
 use winapi::um::winnt::{FILE_LIST_DIRECTORY, FILE_SHARE_DELETE, HANDLE, FILE_SHARE_WRITE, FILE_SHARE_READ};
 use winapi::um::winbase::FILE_FLAG_BACKUP_SEMANTICS;
+use winapi::um::handleapi::CloseHandle;
+use memoffset::offset_of;
 
 #[derive(PartialEq, Eq, Debug, Default, Clone)]
 pub struct FileStat {
@@ -40,20 +42,40 @@ impl DirectoryStat {
     }
 
     fn get_dir_stats(path: &Path) -> HashMap<String, FileStat> {
+        println!{"{:?}", path};
         let mut file_stats = HashMap::new();
         let handle = DirectoryStat::get_directory_handle(path);
         let mut io_block: IO_STATUS_BLOCK = unsafe {std::mem::zeroed()};
         let io_ptr: *mut IO_STATUS_BLOCK = &mut io_block as *mut _;
-        let foo = unsafe { NtQueryDirectoryFile(handle, std::ptr::null_mut(), None, std::ptr::null_mut(), io_ptr, buffer, buffer_size,
+        let mut buffer: [u8; 1000] = [0; 1000];
+        let name_member_offset = offset_of!(FILE_FULL_DIR_INFORMATION, FileName);
+        let mut offset = 0;
+        let result = unsafe { NtQueryDirectoryFile(handle, std::ptr::null_mut(), None, std::ptr::null_mut(), io_ptr, buffer.as_mut_ptr() as *mut winapi::ctypes::c_void, buffer.len() as u32,
                                                 FileFullDirectoryInformation, 1, std::ptr::null_mut(), 0)};
+
+        let (head, body, _tail) = unsafe { buffer[0..].align_to::<FILE_FULL_DIR_INFORMATION>() };
+        let file_info = &body[0];
+        let mtime = unsafe { *file_info.LastWriteTime.QuadPart() as u32};
+        let size = unsafe { *file_info.EndOfFile.QuadPart() as u32};
+
+        let name_offset = name_member_offset + offset;
+        let name_end = name_offset + file_info.FileNameLength as usize;
+        let name = String::from_utf8_lossy(&buffer[name_offset..name_end]).into_owned();
+        offset = file_info.NextEntryOffset as usize;
+        file_stats.insert(name, FileStat{mtime, size});
+
+        // TODO look at making a wrapper object and use drop.
+        unsafe {CloseHandle(handle);}
         file_stats
+
     }
 
     fn get_directory_handle(path: &Path) -> HANDLE {
         let name= CString::new(path.to_str().unwrap()).unwrap();
-        let foo = unsafe {CreateFileA(name.as_ptr(), FILE_LIST_DIRECTORY, FILE_SHARE_WRITE | FILE_SHARE_READ | FILE_SHARE_DELETE, std::ptr::null_mut(), OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, std::ptr::null_mut())};
-        foo
+        let handle = unsafe {CreateFileA(name.as_ptr(), FILE_LIST_DIRECTORY, FILE_SHARE_WRITE | FILE_SHARE_READ | FILE_SHARE_DELETE, std::ptr::null_mut(), OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, std::ptr::null_mut())};
+        handle
     }
+
 }
 
 #[cfg(test)]
