@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::{DirEntry, Index};
 use std::fs;
-use std::time::SystemTime;
+use crate::dirstat::DirectoryStat;
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum Status {
@@ -159,12 +159,13 @@ fn get_file_deltas(
     let mut index_iter = index_entry.iter();
     let mut worktree_file = worktree_iter.next();
     let mut index_file = index_iter.next();
+    let mut stats = None;
     while let Some(wa_file) = worktree_file.as_mut() {
         let w_file = wa_file.as_mut().unwrap();
         match index_file {
             Some(i_file) => match w_file.file_name().cmp(i_file.name.as_ref()) {
                 Ordering::Equal => {
-                    if let Some(entry) = process_tracked_item(w_file, i_file) {
+                    if let Some(entry) = process_tracked_item(w_file, i_file, &mut stats) {
                         file_changes.lock().unwrap().push(entry);
                     }
                     index_file = index_iter.next();
@@ -204,17 +205,16 @@ fn get_file_deltas(
 fn is_modified(
     worktree_file: &mut jwalk::DirEntry<(IndexState, bool)>,
     index_file: &DirEntry,
+    stats: &mut Option<DirectoryStat>,
 ) -> bool {
-    let meta = worktree_file.metadata().unwrap();
-    let mtime = meta
-        .modified()
-        .unwrap()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap()
-        .as_secs() as u32;
-    let size = meta.len() as u32;
+    if let None = stats {
+        *stats = Some(DirectoryStat::new(worktree_file.parent_path()));
+    }
+    let dir_stat = stats.as_ref().unwrap();
+    let name = worktree_file.file_name.to_str().unwrap().to_string();
+    let stat = dir_stat.file_stats.get(&name).unwrap();
     let mut modified = false;
-    if index_file.mtime != mtime || index_file.size != size {
+    if index_file.mtime != stat.mtime || index_file.size != stat.size {
         modified = true;
     }
     modified
@@ -274,6 +274,7 @@ fn submodule_status(dir_entry: &mut jwalk::DirEntry<(IndexState, bool)>) -> Opti
 fn process_tracked_item(
     dir_entry: &mut jwalk::DirEntry<(IndexState, bool)>,
     index_entry: &DirEntry,
+    stats: &mut Option<DirectoryStat>,
 ) -> Option<WorkTreeEntry> {
     if dir_entry.file_type.is_dir() {
         // Be sure and don't walk into submodules from here
@@ -281,7 +282,7 @@ fn process_tracked_item(
         return submodule_status(dir_entry);
     }
 
-    if is_modified(dir_entry, index_entry) {
+    if is_modified(dir_entry, index_entry, stats) {
         let name = get_relative_entry_path_name(dir_entry);
         return Some(WorkTreeEntry {
             name,

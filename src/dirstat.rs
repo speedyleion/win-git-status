@@ -40,7 +40,6 @@ impl DirectoryStat {
     }
 
     fn get_dir_stats(path: &Path) -> HashMap<String, FileStat> {
-        println!{"{:?}", path};
         let mut file_stats = HashMap::new();
         let handle = DirectoryStat::get_directory_handle(path);
         let mut io_block: IO_STATUS_BLOCK = unsafe {std::mem::zeroed()};
