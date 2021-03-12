@@ -11,9 +11,9 @@ use pathdiff::diff_paths;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
+use crate::dirstat::DirectoryStat;
 use crate::{DirEntry, Index};
 use std::fs;
-use crate::dirstat::DirectoryStat;
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum Status {

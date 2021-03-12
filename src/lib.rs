@@ -5,8 +5,8 @@
  *          https://www.boost.org/LICENSE_1_0.txt)
  */
 mod direntry;
-mod index;
 mod dirstat;
+mod index;
 pub mod worktree;
 
 pub use direntry::DirEntry;
