@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use ntapi::ntioapi::{NtQueryDirectoryFile, IO_STATUS_BLOCK, FileFullDirectoryInformation, FILE_FULL_DIR_INFORMATION};
 use winapi::um::fileapi::{CreateFileA, OPEN_EXISTING};
 use std::ffi::CString;
-use winapi::um::winnt::{FILE_LIST_DIRECTORY, FILE_SHARE_DELETE, HANDLE, FILE_SHARE_WRITE, FILE_SHARE_READ};
+use winapi::um::winnt::{FILE_LIST_DIRECTORY, FILE_SHARE_DELETE, HANDLE, FILE_SHARE_WRITE, FILE_SHARE_READ, FILE_ATTRIBUTE_DIRECTORY};
 use winapi::um::winbase::FILE_FLAG_BACKUP_SEMANTICS;
 use winapi::um::handleapi::CloseHandle;
 use memoffset::offset_of;
@@ -49,21 +49,32 @@ impl DirectoryStat {
         let io_ptr: *mut IO_STATUS_BLOCK = &mut io_block as *mut _;
         let mut buffer: [u8; 1000] = [0; 1000];
         let name_member_offset = offset_of!(FILE_FULL_DIR_INFORMATION, FileName);
-        let mut offset = 0;
-        let result = unsafe { NtQueryDirectoryFile(handle, std::ptr::null_mut(), None, std::ptr::null_mut(), io_ptr, buffer.as_mut_ptr() as *mut winapi::ctypes::c_void, buffer.len() as u32,
-                                                FileFullDirectoryInformation, 1, std::ptr::null_mut(), 0)};
+        loop{
+            let mut offset = 0;
+            let result = unsafe { NtQueryDirectoryFile(handle, std::ptr::null_mut(), None, std::ptr::null_mut(), io_ptr, buffer.as_mut_ptr() as *mut winapi::ctypes::c_void, buffer.len() as u32,
+                                                    FileFullDirectoryInformation, 0, std::ptr::null_mut(), 0)};
+            if result < 0 {
+                break;
+            }
 
-        let (head, body, _tail) = unsafe { buffer[0..].align_to::<FILE_FULL_DIR_INFORMATION>() };
-        let file_info = &body[0];
-        let mtime = unsafe { *file_info.LastWriteTime.QuadPart() as u32};
-        let size = unsafe { *file_info.EndOfFile.QuadPart() as u32};
+            loop {
+                let (head, body, _tail) = unsafe { buffer[offset..].align_to::<FILE_FULL_DIR_INFORMATION>() };
+                let file_info = &body[0];
+                let name_offset = name_member_offset + offset;
+                offset += file_info.NextEntryOffset as usize;
+                if file_info.FileAttributes & FILE_ATTRIBUTE_DIRECTORY == 0 {
+                    let mtime = unsafe { *file_info.LastWriteTime.QuadPart() as u32 };
+                    let size = unsafe { *file_info.EndOfFile.QuadPart() as u32 };
 
-        let name_offset = name_member_offset + offset;
-        let name_end = name_offset + file_info.FileNameLength as usize;
-        let name = String::from_utf8_lossy(&buffer[name_offset..name_end]).into_owned();
-        offset = file_info.NextEntryOffset as usize;
-        file_stats.insert(name, FileStat{mtime, size});
-
+                    let name_end = name_offset + file_info.FileNameLength as usize;
+                    let name = String::from_utf8_lossy(&buffer[name_offset..name_end]).into_owned();
+                    file_stats.insert(name, FileStat { mtime, size });
+                }
+                if file_info.NextEntryOffset  == 0 {
+                    break;
+                }
+            }
+        }
         // TODO look at making a wrapper object and use drop.
         unsafe {CloseHandle(handle);}
         file_stats
