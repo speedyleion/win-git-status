@@ -11,8 +11,9 @@ use pathdiff::diff_paths;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
+use crate::direntry::DirEntry;
 use crate::dirstat::DirectoryStat;
-use crate::{DirEntry, Index};
+use crate::Index;
 use std::fs;
 
 #[derive(PartialEq, Eq, Debug, Clone)]
@@ -214,7 +215,7 @@ fn is_modified(
     let name = worktree_file.file_name.to_str().unwrap().to_string();
     let stat = dir_stat.file_stats.get(&name).unwrap();
     let mut modified = false;
-    if index_file.mtime != stat.mtime || index_file.size != stat.size {
+    if index_file.stat != *stat {
         modified = true;
     }
     modified
@@ -295,6 +296,7 @@ fn process_tracked_item(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::direntry::FileStat;
     use std::fs;
     use std::time::SystemTime;
     use temp_testdir::TempDir;
@@ -326,13 +328,15 @@ mod tests {
 
             let dir_entries = index.entries.get_mut(&relative_parent).unwrap();
             dir_entries.push(DirEntry {
-                mtime: metadata
-                    .modified()
-                    .unwrap()
-                    .duration_since(SystemTime::UNIX_EPOCH)
-                    .unwrap()
-                    .as_secs() as u32,
-                size: metadata.len() as u32,
+                stat: FileStat {
+                    mtime: metadata
+                        .modified()
+                        .unwrap()
+                        .duration_since(SystemTime::UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs() as u32,
+                    size: metadata.len() as u32,
+                },
                 sha: [0; 20],
                 name: file.file_name().unwrap().to_str().unwrap().to_string(),
             });
@@ -348,11 +352,25 @@ mod tests {
     }
 
     #[test]
-    fn test_diff_against_index_a_file_modified() {
+    fn test_diff_against_index_a_file_modified_size() {
         let entry_name = "simple_file.txt";
         let (mut index, temp_dir) = temp_tree(vec![Path::new(entry_name)]);
         let dir_entries = index.entries.get_mut("").unwrap();
-        dir_entries[0].size += 1;
+        dir_entries[0].stat.size += 1;
+        let value = WorkTree::diff_against_index(&*temp_dir, index, true).unwrap();
+        let entries = vec![WorkTreeEntry {
+            name: entry_name.to_string(),
+            state: Status::MODIFIED,
+        }];
+        assert_eq!(value.entries, entries);
+    }
+
+    #[test]
+    fn test_diff_against_index_a_file_modified_mstat() {
+        let entry_name = "simple_file.txt";
+        let (mut index, temp_dir) = temp_tree(vec![Path::new(entry_name)]);
+        let dir_entries = index.entries.get_mut("").unwrap();
+        dir_entries[0].stat.mtime += 1;
         let value = WorkTree::diff_against_index(&*temp_dir, index, true).unwrap();
         let entries = vec![WorkTreeEntry {
             name: entry_name.to_string(),
@@ -372,7 +390,7 @@ mod tests {
     fn test_diff_against_modified_index_deeply_nested() {
         let (mut index, temp_dir) = temp_tree(vec![Path::new("dir_1/dir_2/dir_3/file.txt")]);
         let dir_entries = index.entries.get_mut("dir_1/dir_2/dir_3").unwrap();
-        dir_entries[0].size += 1;
+        dir_entries[0].stat.size += 1;
         let value = WorkTree::diff_against_index(&*temp_dir, index, true).unwrap();
         let entries = vec![WorkTreeEntry {
             name: "dir_1/dir_2/dir_3/file.txt".to_string(),

@@ -19,7 +19,8 @@ use std::io;
 use std::io::Read;
 use std::path::Path;
 
-use crate::DirEntry;
+use crate::direntry::{DirEntry, FileStat};
+
 use std::collections::HashMap;
 
 #[derive(Debug)]
@@ -134,8 +135,7 @@ impl Index {
         let parent_path = full_path.parent().unwrap().to_str().unwrap();
         let name = full_path.file_name().unwrap().to_str().unwrap().to_string();
         let entry = DirEntry {
-            size,
-            mtime,
+            stat: FileStat { size, mtime },
             sha: sha.try_into().unwrap(),
             name,
         };
@@ -247,8 +247,10 @@ mod tests {
                 (
                     "some/file".to_string(),
                     DirEntry {
-                        mtime: 20,
-                        size: 70,
+                        stat: FileStat {
+                            mtime: 20,
+                            size: 70,
+                        },
                         sha: *sha,
                         name: "name".to_string()
                     }
@@ -275,8 +277,7 @@ mod tests {
                 (
                     "a/different/name/to/a/file".to_string(),
                     DirEntry {
-                        mtime: 0,
-                        size: 0,
+                        stat: FileStat { mtime: 0, size: 0 },
                         sha: *sha,
                         name: "with.ext".to_string()
                     }
@@ -306,8 +307,7 @@ mod tests {
                 (
                     "a".to_string(),
                     DirEntry {
-                        mtime: 0,
-                        size: 0,
+                        stat: FileStat { mtime: 0, size: 0 },
                         sha: *sha,
                         name: "file".to_string()
                     }
@@ -337,8 +337,7 @@ mod tests {
                 (
                     "".to_string(),
                     DirEntry {
-                        mtime: 0,
-                        size: 0,
+                        stat: FileStat { mtime: 0, size: 0 },
                         sha: *sha,
                         name: "niners999".to_string()
                     }
@@ -368,8 +367,7 @@ mod tests {
                 (
                     "".to_string(),
                     DirEntry {
-                        mtime: 0,
-                        size: 0,
+                        stat: FileStat { mtime: 0, size: 0 },
                         sha: *sha,
                         name: "22".to_string()
                     }

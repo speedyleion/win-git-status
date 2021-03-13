@@ -20,11 +20,7 @@ use winapi::um::winnt::{
     FILE_SHARE_WRITE, HANDLE, LARGE_INTEGER,
 };
 
-#[derive(PartialEq, Eq, Debug, Default, Clone)]
-pub struct FileStat {
-    pub mtime: u32,
-    pub size: u32,
-}
+use crate::direntry::FileStat;
 
 #[derive(PartialEq, Eq, Debug, Default, Clone)]
 pub struct DirectoryStat {
@@ -173,6 +169,48 @@ mod tests {
             dirstat.file_stats.get("one").unwrap(),
             &FileStat { mtime, size }
         );
+    }
+
+    #[test]
+    fn test_multiple_entries_in_dir_stat() {
+        let names = vec!["what", "who", "why"];
+        let files = names.iter().map(|n| Path::new(n)).collect();
+        let temp_dir = temp_tree(files);
+
+        let dirstat = DirectoryStat::new(&temp_dir);
+        assert_eq!(dirstat.file_stats.len(), names.len());
+
+        for name in names {
+            let file = temp_dir.join(name);
+            let meta = file.metadata().unwrap();
+            let mtime = meta
+                .modified()
+                .unwrap()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs() as u32;
+            let size = meta.len() as u32;
+            assert_eq!(
+                dirstat.file_stats.get(name).unwrap(),
+                &FileStat { mtime, size }
+            );
+        }
+    }
+
+    #[test]
+    fn test_a_directory_in_dir_stat() {
+        let names = vec!["sure", "you_know", "how"];
+        let files = names.iter().map(|n| Path::new(n)).collect();
+        let temp_dir = temp_tree(files);
+
+        fs::create_dir_all(temp_dir.join("some_dir")).unwrap();
+
+        let dirstat = DirectoryStat::new(&temp_dir);
+        assert_eq!(dirstat.file_stats.len(), names.len());
+
+        for name in names {
+            assert!(dirstat.file_stats.get(name).is_some());
+        }
     }
 
     #[test]
