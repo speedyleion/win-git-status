@@ -36,7 +36,7 @@ fn worktree_diff_with_submodule() {
     let index_file = super_repo.join(".git/index");
     let index = Index::new(&index_file).unwrap();
 
-    let value = WorkTree::diff_against_index(&super_repo, index, true).unwrap();
+    let value = WorkTree::diff_against_index(&super_repo, index).unwrap();
     assert_eq!(value.entries, vec![]);
 }
 
@@ -65,7 +65,7 @@ fn worktree_diff_with_dirty_submodule() {
     let index_file = super_repo.join(".git/index");
     let index = Index::new(&index_file).unwrap();
 
-    let value = WorkTree::diff_against_index(&super_repo, index, true).unwrap();
+    let value = WorkTree::diff_against_index(&super_repo, index).unwrap();
     let entries = vec![WorkTreeEntry {
         name: "sub_repo_dir/".to_string(),
         state: Status::MODIFIED,

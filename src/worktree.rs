@@ -76,6 +76,13 @@ impl WorkTree {
     pub fn diff_against_index(
         path: &Path,
         index: Index,
+    ) -> Result<WorkTree, WorkTreeError> {
+        WorkTree::diff_against_index_recursive(path, index, true)
+
+    }
+    pub fn diff_against_index_recursive(
+        path: &Path,
+        index: Index,
         root: bool,
     ) -> Result<WorkTree, WorkTreeError> {
         let changed_files = Arc::new(Mutex::new(vec![]));
@@ -259,7 +266,7 @@ fn submodule_status(dir_entry: &mut jwalk::DirEntry<(IndexState, bool)>) -> Opti
     let index_file = index_file.join("index");
     let index = Index::new(&index_file).unwrap();
 
-    let value = WorkTree::diff_against_index(&path, index, false).unwrap();
+    let value = WorkTree::diff_against_index_recursive(&path, index, false).unwrap();
     if value.entries.is_empty() {
         return None;
     }
@@ -347,7 +354,7 @@ mod tests {
     #[test]
     fn test_diff_against_index_nothing_modified() {
         let (index, temp_dir) = temp_tree(vec![Path::new("simple_file.txt")]);
-        let value = WorkTree::diff_against_index(&*temp_dir, index, true).unwrap();
+        let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
         assert_eq!(value.entries, vec![]);
     }
 
@@ -357,7 +364,7 @@ mod tests {
         let (mut index, temp_dir) = temp_tree(vec![Path::new(entry_name)]);
         let dir_entries = index.entries.get_mut("").unwrap();
         dir_entries[0].stat.size += 1;
-        let value = WorkTree::diff_against_index(&*temp_dir, index, true).unwrap();
+        let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
         let entries = vec![WorkTreeEntry {
             name: entry_name.to_string(),
             state: Status::MODIFIED,
@@ -371,7 +378,7 @@ mod tests {
         let (mut index, temp_dir) = temp_tree(vec![Path::new(entry_name)]);
         let dir_entries = index.entries.get_mut("").unwrap();
         dir_entries[0].stat.mtime += 1;
-        let value = WorkTree::diff_against_index(&*temp_dir, index, true).unwrap();
+        let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
         let entries = vec![WorkTreeEntry {
             name: entry_name.to_string(),
             state: Status::MODIFIED,
@@ -382,7 +389,7 @@ mod tests {
     #[test]
     fn test_diff_against_index_deeply_nested() {
         let (index, temp_dir) = temp_tree(vec![Path::new("dir_1/dir_2/dir_3/file.txt")]);
-        let value = WorkTree::diff_against_index(&*temp_dir, index, true).unwrap();
+        let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
         assert_eq!(value.entries, vec![]);
     }
 
@@ -391,7 +398,7 @@ mod tests {
         let (mut index, temp_dir) = temp_tree(vec![Path::new("dir_1/dir_2/dir_3/file.txt")]);
         let dir_entries = index.entries.get_mut("dir_1/dir_2/dir_3").unwrap();
         dir_entries[0].stat.size += 1;
-        let value = WorkTree::diff_against_index(&*temp_dir, index, true).unwrap();
+        let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
         let entries = vec![WorkTreeEntry {
             name: "dir_1/dir_2/dir_3/file.txt".to_string(),
             state: Status::MODIFIED,
@@ -407,7 +414,7 @@ mod tests {
         fs::create_dir_all(new_file.parent().unwrap()).unwrap();
         fs::write(&new_file, "stuff").unwrap();
 
-        let value = WorkTree::diff_against_index(&*temp_dir, index, true).unwrap();
+        let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
         let entries = vec![WorkTreeEntry {
             name: new_file_name.to_string(),
             state: Status::NEW,
@@ -427,7 +434,7 @@ mod tests {
             fs::write(&new_file, "stuff").unwrap();
         }
 
-        let value = WorkTree::diff_against_index(&*temp_dir, index, true).unwrap();
+        let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
         let entries: Vec<WorkTreeEntry> = new_file_names
             .iter()
             .map(|&n| WorkTreeEntry {
@@ -445,7 +452,7 @@ mod tests {
         let (index, temp_dir) = temp_tree(files);
         fs::remove_file(temp_dir.join("file_2.txt")).unwrap();
 
-        let value = WorkTree::diff_against_index(&*temp_dir, index, true).unwrap();
+        let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
         let entries = vec![WorkTreeEntry {
             name: "file_2.txt".to_string(),
             state: Status::DELETED,
@@ -460,7 +467,7 @@ mod tests {
         let (index, temp_dir) = temp_tree(files);
         fs::remove_file(temp_dir.join("foo.txt")).unwrap();
 
-        let value = WorkTree::diff_against_index(&*temp_dir, index, true).unwrap();
+        let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
         let entries = vec![WorkTreeEntry {
             name: "foo.txt".to_string(),
             state: Status::DELETED,
