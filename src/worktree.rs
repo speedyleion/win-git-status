@@ -73,12 +73,8 @@ impl WorkTree {
     /// * `path` - The path to a git repo.  This logic will _not_ search up parent directories for
     ///     a git repo
     /// * `index` - The index to compare against
-    pub fn diff_against_index(
-        path: &Path,
-        index: Index,
-    ) -> Result<WorkTree, WorkTreeError> {
+    pub fn diff_against_index(path: &Path, index: Index) -> Result<WorkTree, WorkTreeError> {
         WorkTree::diff_against_index_recursive(path, index, true)
-
     }
     pub fn diff_against_index_recursive(
         path: &Path,
