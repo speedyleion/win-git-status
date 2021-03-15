@@ -6,33 +6,55 @@
  */
 
 
-use crate::DirEntry;
+use crate::{DirEntry, Index};
 use std::path::Path;
+use git2::{Repository, TreeWalkMode, TreeWalkResult, TreeEntry, ObjectType};
+use crate::direntry::FileStat;
+use std::convert::TryInto;
+
+#[derive(PartialEq, Eq, Debug, Clone)]
+pub enum Status {
+    CURRENT,
+    NEW,
+    MODIFIED,
+    DELETED,
+}
+
+impl Default for Status {
+    fn default() -> Self {
+        Status::CURRENT
+    }
+}
+
+#[derive(PartialEq, Eq, Debug, Default, Clone)]
+pub struct TreeDiffEntry {
+    pub name: String,
+    pub state: Status,
+}
 
 /// A tree of a repo.
 ///
-/// Some common git internal terms.
-///
 #[derive(Debug, Default, PartialEq)]
-pub struct Tree {
+pub struct TreeDiff {
     path: String,
-    pub trees: Vec<Tree>,
-    pub files: Vec<DirEntry>
+    pub entries: Vec<TreeDiffEntry>,
 }
 
-impl Tree {
-    pub fn new(path: &Path) -> Tree {
-        Tree::default()
+impl TreeDiff {
+    pub fn diff_against_index(path: &Path, index: Index) -> TreeDiff {
+        TreeDiff::default()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::env::current_dir;
 
     #[test]
-    fn test_get_tree() {
-        assert_eq!(Tree::new(Path::new("what")), Tree::default());
+    fn test_get_tree_diff() {
+        let cwd = current_dir().unwrap();
+        assert_eq!(TreeDiff::diff_against_index(&cwd, Index::default()), TreeDiff::default());
     }
 
 }
