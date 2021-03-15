@@ -8,6 +8,7 @@ mod direntry;
 mod dirstat;
 mod index;
 pub mod worktree;
+mod tree;
 
 pub use direntry::DirEntry;
 pub use index::Index;

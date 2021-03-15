@@ -13,6 +13,7 @@ sha-1 = "0.9"
 pathdiff = "0.2.0"
 ntapi = "0.3.6"
 memoffset = "0.6.1"
+git-object = "0.6.0"
 
 [dependencies.winapi]
 version = "0.3.9"
