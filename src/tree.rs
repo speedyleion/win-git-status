@@ -8,7 +8,8 @@
 
 use crate::{DirEntry, Index};
 use std::path::Path;
-use git2::{Repository, TreeWalkMode, TreeWalkResult, TreeEntry, ObjectType};
+use git2::{Repository, TreeWalkMode, TreeWalkResult, TreeEntry, ObjectType, StatusOptions, StatusShow, Statuses};
+use git2;
 use crate::direntry::FileStat;
 use std::convert::TryInto;
 
@@ -36,15 +37,41 @@ pub struct TreeDiffEntry {
 ///
 #[derive(Debug, Default, PartialEq)]
 pub struct TreeDiff {
-    path: String,
     pub entries: Vec<TreeDiffEntry>,
 }
 
 impl TreeDiff {
     pub fn diff_against_index(path: &Path) -> TreeDiff {
-        TreeDiff::default()
+        let tree = TreeDiff::git2_tree_diff(path);
+        tree
+    }
+    fn git2_tree_diff(repo_path: &Path) -> TreeDiff {
+        let repo = Repository::open(repo_path).unwrap();
+        let mut options = StatusOptions::new();
+        options.show(StatusShow::Index);
+        let diff = repo.statuses(Option::from(&mut options)).unwrap();
+        let tree = TreeDiff::convert_git2_to_treediff(&diff);
+        return tree;
+    }
+    fn convert_git2_to_treediff(statuses: &Statuses) -> TreeDiff {
+        let mut entries = vec![];
+        for status in statuses.iter() {
+            let state = TreeDiff::git2_status_to_treediff_status(status.status());
+            entries.push(TreeDiffEntry{name: status.path().unwrap().to_string(), state});
+        }
+        TreeDiff{entries}
+    }
+    fn git2_status_to_treediff_status(status: git2::Status) -> Status {
+        let stat = match status {
+            git2::Status::INDEX_NEW => Status::NEW,
+            git2::Status::INDEX_MODIFIED => Status::MODIFIED,
+            git2::Status::INDEX_DELETED => Status::DELETED,
+            _ => panic!("Unsupported index status {:?}", status),
+        };
+        stat
     }
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -112,10 +139,7 @@ mod tests {
 
         stage_file(repo_path, files[0]);
         let diff = TreeDiff::diff_against_index(&temp_dir);
-        assert_eq!(diff.entries.len(), 1);
-        let diff_names: Vec<&String> = diff.entries.iter().map(|e| &e.name).collect();
-        names.sort();
-        assert_eq!(diff_names, names);
+        assert_eq!(diff, TreeDiff{entries: vec![TreeDiffEntry{name: names[0].to_string(), state: Status::MODIFIED}]});
     }
 
 }
