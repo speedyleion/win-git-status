@@ -7,4 +7,6 @@ fn main() {
     let index = win_git_status::Index::new(&*index_file).unwrap();
     let worktree = win_git_status::WorkTree::diff_against_index(path, index);
     println!("{:?}", worktree);
+    let indextree = win_git_status::TreeDiff::diff_against_index(path);
+    println!("{:?}", indextree);
 }

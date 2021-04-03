@@ -13,3 +13,4 @@ mod tree;
 pub use direntry::DirEntry;
 pub use index::Index;
 pub use worktree::WorkTree;
+pub use tree::TreeDiff;
