@@ -5,9 +5,8 @@
  *          https://www.boost.org/LICENSE_1_0.txt)
  */
 
-
-use std::path::Path;
 use git2::{Repository, StatusOptions, StatusShow, Statuses};
+use std::path::Path;
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum Status {
@@ -49,9 +48,12 @@ impl TreeDiff {
         let mut entries = vec![];
         for status in statuses.iter() {
             let state = TreeDiff::git2_status_to_treediff_status(status.status());
-            entries.push(TreeDiffEntry{name: status.path().unwrap().to_string(), state});
+            entries.push(TreeDiffEntry {
+                name: status.path().unwrap().to_string(),
+                state,
+            });
         }
-        TreeDiff{entries}
+        TreeDiff { entries }
     }
     fn git2_status_to_treediff_status(status: git2::Status) -> Status {
         match status {
@@ -63,13 +65,12 @@ impl TreeDiff {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use temp_testdir::TempDir;
     use git2::{Signature, Time};
     use std::fs;
+    use temp_testdir::TempDir;
 
     // stage a file change so that the index version of a file differs from a tree version.
     pub fn stage_file(repo_path: &str, file: &Path) -> () {
@@ -109,7 +110,7 @@ mod tests {
             // No parents yet this is the first commit
             &[],
         )
-            .unwrap();
+        .unwrap();
     }
 
     #[test]
@@ -129,7 +130,14 @@ mod tests {
 
         stage_file(repo_path, files[0]);
         let diff = TreeDiff::diff_against_index(&temp_dir);
-        assert_eq!(diff, TreeDiff{entries: vec![TreeDiffEntry{name: names[0].to_string(), state: Status::MODIFIED}]});
+        assert_eq!(
+            diff,
+            TreeDiff {
+                entries: vec![TreeDiffEntry {
+                    name: names[0].to_string(),
+                    state: Status::MODIFIED
+                }]
+            }
+        );
     }
-
 }

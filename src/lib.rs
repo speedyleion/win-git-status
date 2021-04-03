@@ -7,10 +7,10 @@
 mod direntry;
 mod dirstat;
 mod index;
-pub mod worktree;
 mod tree;
+pub mod worktree;
 
 pub use direntry::DirEntry;
 pub use index::Index;
-pub use worktree::WorkTree;
 pub use tree::TreeDiff;
+pub use worktree::WorkTree;
