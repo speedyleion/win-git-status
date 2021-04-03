@@ -54,8 +54,20 @@ mod tests {
     use git2::{Signature, Time};
     use std::fs;
 
+    // stage a file change so that the index version of a file differs from a tree version.
+    pub fn stage_file(repo_path: &str, file: &Path) -> () {
+        let repo = Repository::open(repo_path).unwrap();
+        let mut index = repo.index().unwrap();
+        let root = repo.path().parent().unwrap();
+        let full_path = root.join(file);
+
+        fs::write(&full_path, "staged changes").unwrap();
+        index.add_path(&file).unwrap();
+        index.write().unwrap();
+    }
+
     // Create a test repo to be able to compare the index to the working tree.
-    pub fn test_repo(path: &str, files: Vec<&Path>) -> () {
+    pub fn test_repo(path: &str, files: &Vec<&Path>) -> () {
         let repo = Repository::init(path).unwrap();
         let mut index = repo.index().unwrap();
         let root = repo.path().parent().unwrap();
@@ -86,7 +98,7 @@ mod tests {
     #[test]
     fn test_get_tree_diff_empty_repo() {
         let temp_dir = TempDir::default();
-        let repo = test_repo(temp_dir.to_str().unwrap(), vec![]);
+        let repo = test_repo(temp_dir.to_str().unwrap(), &vec![]);
         assert_eq!(TreeDiff::diff_against_index(&temp_dir), TreeDiff::default());
     }
 
@@ -95,8 +107,10 @@ mod tests {
         let mut names = vec!["one.baz"];
         let files = names.iter().map(|n| Path::new(n)).collect();
         let temp_dir = TempDir::default();
-        let repo = test_repo(temp_dir.to_str().unwrap(), files);
+        let repo_path = temp_dir.to_str().unwrap();
+        let repo = test_repo(repo_path, &files);
 
+        stage_file(repo_path, files[0]);
         let diff = TreeDiff::diff_against_index(&temp_dir);
         assert_eq!(diff.entries.len(), 1);
         let diff_names: Vec<&String> = diff.entries.iter().map(|e| &e.name).collect();
