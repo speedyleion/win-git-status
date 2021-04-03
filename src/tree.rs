@@ -6,12 +6,9 @@
  */
 
 
-use crate::{DirEntry, Index};
 use std::path::Path;
-use git2::{Repository, TreeWalkMode, TreeWalkResult, TreeEntry, ObjectType, StatusOptions, StatusShow, Statuses};
+use git2::{Repository, StatusOptions, StatusShow, Statuses};
 use git2;
-use crate::direntry::FileStat;
-use std::convert::TryInto;
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum Status {
@@ -76,7 +73,6 @@ impl TreeDiff {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::env::current_dir;
     use temp_testdir::TempDir;
     use git2::{Signature, Time};
     use std::fs;
@@ -125,17 +121,17 @@ mod tests {
     #[test]
     fn test_get_tree_diff_empty_repo() {
         let temp_dir = TempDir::default();
-        let repo = test_repo(temp_dir.to_str().unwrap(), &vec![]);
+        test_repo(temp_dir.to_str().unwrap(), &vec![]);
         assert_eq!(TreeDiff::diff_against_index(&temp_dir), TreeDiff::default());
     }
 
     #[test]
     fn test_get_tree_diff_1_file_changed() {
-        let mut names = vec!["one.baz"];
+        let names = vec!["one.baz"];
         let files = names.iter().map(|n| Path::new(n)).collect();
         let temp_dir = TempDir::default();
         let repo_path = temp_dir.to_str().unwrap();
-        let repo = test_repo(repo_path, &files);
+        test_repo(repo_path, &files);
 
         stage_file(repo_path, files[0]);
         let diff = TreeDiff::diff_against_index(&temp_dir);
