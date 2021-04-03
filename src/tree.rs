@@ -41,7 +41,7 @@ pub struct TreeDiff {
 }
 
 impl TreeDiff {
-    pub fn diff_against_index(path: &Path, index: Index) -> TreeDiff {
+    pub fn diff_against_index(path: &Path) -> TreeDiff {
         TreeDiff::default()
     }
 }
@@ -50,11 +50,12 @@ impl TreeDiff {
 mod tests {
     use super::*;
     use std::env::current_dir;
+    use temp_testdir::TempDir;
 
     #[test]
     fn test_get_tree_diff() {
-        let cwd = current_dir().unwrap();
-        assert_eq!(TreeDiff::diff_against_index(&cwd, Index::default()), TreeDiff::default());
+        let temp_dir = TempDir::default();
+        assert_eq!(TreeDiff::diff_against_index(&temp_dir), TreeDiff::default());
     }
 
 }
