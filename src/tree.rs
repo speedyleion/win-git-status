@@ -140,4 +140,10 @@ mod tests {
             }
         );
     }
+
+    #[test]
+    #[should_panic(expected = "Unsupported index status WT_NEW")]
+    fn test_unsupported_status_from_libgit2() {
+        TreeDiff::git2_status_to_treediff_status(git2::Status::WT_NEW);
+    }
 }
