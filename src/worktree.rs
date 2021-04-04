@@ -16,6 +16,7 @@ use crate::dirstat::DirectoryStat;
 use crate::Index;
 use crate::status::{Status, StatusEntry};
 use std::fs;
+use crate::error::StatusError;
 
 #[derive(Debug, Default, Clone)]
 struct IndexState {
@@ -24,13 +25,9 @@ struct IndexState {
     changed_files: Arc<Mutex<Vec<StatusEntry>>>,
 }
 
-#[derive(Debug)]
-pub struct WorkTreeError {
-    message: String,
-}
-impl From<jwalk::Error> for WorkTreeError {
-    fn from(err: jwalk::Error) -> WorkTreeError {
-        WorkTreeError {
+impl From<jwalk::Error> for StatusError {
+    fn from(err: jwalk::Error) -> StatusError {
+        StatusError {
             message: err.to_string(),
         }
     }
@@ -54,7 +51,7 @@ impl WorkTree {
     /// * `path` - The path to a git repo.  This logic will _not_ search up parent directories for
     ///     a git repo
     /// * `index` - The index to compare against
-    pub fn diff_against_index(path: &Path, index: Index) -> Result<WorkTree, WorkTreeError> {
+    pub fn diff_against_index(path: &Path, index: Index) -> Result<WorkTree, StatusError> {
         WorkTree::diff_against_index_recursive(path, index, true)
     }
 
@@ -62,7 +59,7 @@ impl WorkTree {
         path: &Path,
         index: Index,
         root: bool,
-    ) -> Result<WorkTree, WorkTreeError> {
+    ) -> Result<WorkTree, StatusError> {
         let changed_files = Arc::new(Mutex::new(vec![]));
         let entries = Arc::clone(&changed_files);
 
@@ -166,7 +163,7 @@ fn get_file_deltas(
                 Ordering::Greater => {
                     file_changes.lock().unwrap().push(StatusEntry {
                         name: i_file.name.to_string(),
-                        state: Status::DELETED,
+                        state: Status::Deleted,
                     });
                     index_file = index_iter.next();
                 }
@@ -182,7 +179,7 @@ fn get_file_deltas(
     while let Some(i_file) = index_file {
         file_changes.lock().unwrap().push(StatusEntry {
             name: i_file.name.to_string(),
-            state: Status::DELETED,
+            state: Status::Deleted,
         });
         index_file = index_iter.next();
     }
@@ -228,7 +225,7 @@ fn process_new_item(
 
     Some(StatusEntry {
         name,
-        state: Status::NEW,
+        state: Status::New,
     })
 }
 
@@ -253,7 +250,7 @@ fn submodule_status(dir_entry: &mut jwalk::DirEntry<(IndexState, bool)>) -> Opti
 
     Some(StatusEntry {
         name,
-        state: Status::MODIFIED,
+        state: Status::Modified,
     })
 }
 
@@ -272,7 +269,7 @@ fn process_tracked_item(
         let name = get_relative_entry_path_name(dir_entry);
         return Some(StatusEntry {
             name,
-            state: Status::MODIFIED,
+            state: Status::Modified,
         });
     }
     None
@@ -345,7 +342,7 @@ mod tests {
         let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
         let entries = vec![StatusEntry {
             name: entry_name.to_string(),
-            state: Status::MODIFIED,
+            state: Status::Modified,
         }];
         assert_eq!(value.entries, entries);
     }
@@ -359,7 +356,7 @@ mod tests {
         let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
         let entries = vec![StatusEntry {
             name: entry_name.to_string(),
-            state: Status::MODIFIED,
+            state: Status::Modified,
         }];
         assert_eq!(value.entries, entries);
     }
@@ -379,7 +376,7 @@ mod tests {
         let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
         let entries = vec![StatusEntry {
             name: "dir_1/dir_2/dir_3/file.txt".to_string(),
-            state: Status::MODIFIED,
+            state: Status::Modified,
         }];
         assert_eq!(value.entries, entries);
     }
@@ -395,7 +392,7 @@ mod tests {
         let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
         let entries = vec![StatusEntry {
             name: new_file_name.to_string(),
-            state: Status::NEW,
+            state: Status::New,
         }];
         assert_eq!(value.entries, entries);
     }
@@ -417,7 +414,7 @@ mod tests {
             .iter()
             .map(|&n| StatusEntry {
                 name: n.to_string(),
-                state: Status::NEW,
+                state: Status::New,
             })
             .collect();
         assert_eq!(value.entries, entries);
@@ -433,7 +430,7 @@ mod tests {
         let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
         let entries = vec![StatusEntry {
             name: "file_2.txt".to_string(),
-            state: Status::DELETED,
+            state: Status::Deleted,
         }];
         assert_eq!(value.entries, entries);
     }
@@ -448,7 +445,7 @@ mod tests {
         let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
         let entries = vec![StatusEntry {
             name: "foo.txt".to_string(),
-            state: Status::DELETED,
+            state: Status::Deleted,
         }];
         assert_eq!(value.entries, entries);
     }

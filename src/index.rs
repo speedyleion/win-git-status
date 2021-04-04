@@ -15,13 +15,13 @@ use nom::do_parse;
 use nom::IResult;
 use std::convert::TryInto;
 use std::fs::File;
-use std::io;
 use std::io::Read;
 use std::path::Path;
 
 use crate::direntry::{DirEntry, FileStat};
 
 use std::collections::HashMap;
+use crate::error::StatusError;
 
 impl From<nom::Err<nom::error::Error<&[u8]>>> for StatusError {
     fn from(err: nom::Err<nom::error::Error<&[u8]>>) -> StatusError {

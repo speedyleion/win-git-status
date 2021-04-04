@@ -1,12 +1,10 @@
 use std::env;
 use std::path::Path;
+use win_git_status::RepoStatus;
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     let path = Path::new(&args[1]);
-    let index_file = path.join(".git/index");
-    let index = win_git_status::Index::new(&*index_file).unwrap();
-    let worktree = win_git_status::WorkTree::diff_against_index(path, index);
-    println!("{:?}", worktree);
-    let indextree = win_git_status::TreeDiff::diff_against_index(path);
-    println!("{:?}", indextree);
+    let status = RepoStatus::new(path).unwrap();
+    println!("{:?}", status);
 }

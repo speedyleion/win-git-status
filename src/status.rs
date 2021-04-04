@@ -8,14 +8,14 @@
 /// The status of a file in relation to the rest of the git repo.
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum Status {
-    CURRENT,
-    NEW,
-    MODIFIED,
-    DELETED,
+    Current,
+    New,
+    Modified,
+    Deleted,
 }
 impl Default for Status {
     fn default() -> Self {
-        Status::CURRENT
+        Status::Current
     }
 }
 

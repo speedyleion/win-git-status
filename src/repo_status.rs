@@ -5,34 +5,24 @@
  *          https://www.boost.org/LICENSE_1_0.txt)
  */
 
-use crate::{WorkTree, TreeDiff};
+use crate::{WorkTree, TreeDiff, Index};
+use std::path::Path;
+use crate::error::StatusError;
 
-#[derive(PartialEq, Eq, Debug, Default, Clone)]
+#[derive(Debug)]
 pub struct RepoStatus {
-    work_tree_diff: WorkTree,
     index_diff: TreeDiff,
+    work_tree_diff: WorkTree,
 }
 
 impl RepoStatus {
     /// * `path` - The path to a git repo.  This logic will _not_ search up parent directories for
     ///     a git repo
     pub fn new(path: &Path) -> Result<RepoStatus, StatusError> {
-        let oid: [u8; 20] = [0; 20];
-        let mut buffer: Vec<u8> = Vec::new();
-        File::open(&path).and_then(|mut f| f.read_to_end(&mut buffer))?;
-        let (mut contents, header) = Index::read_header(&buffer)?;
-        let mut entries = HashMap::new();
-        for _ in 0..header.entries {
-            let (local_contents, (directory, entry)) = Index::read_entry(&contents)?;
-            let directory_entry = Index::get_directory_entry(&directory, &mut entries);
-            directory_entry.push(entry);
-            contents = local_contents;
-        }
-        let index = Index {
-            path: String::from(path.to_str().unwrap()),
-            oid,
-            header,
-            entries,
-        };
-        Ok(index)
+        let index_file = path.join(".git/index");
+        let index = Index::new(&*index_file)?;
+        let work_tree_diff = WorkTree::diff_against_index(path, index)?;
+        let index_diff = TreeDiff::diff_against_index(path);
+        Ok(RepoStatus { index_diff, work_tree_diff })
     }
+}

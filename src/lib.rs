@@ -10,9 +10,11 @@ mod index;
 mod tree;
 mod status;
 mod repo_status;
+mod error;
 pub mod worktree;
 
 pub use direntry::DirEntry;
 pub use index::Index;
 pub use tree::TreeDiff;
 pub use worktree::WorkTree;
+pub use repo_status::RepoStatus;

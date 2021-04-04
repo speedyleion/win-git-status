@@ -5,9 +5,11 @@
  *          https://www.boost.org/LICENSE_1_0.txt)
  */
 
+use std::io;
+
 #[derive(Debug)]
 pub struct StatusError {
-    message: String,
+    pub message: String,
 }
 
 impl From<io::Error> for StatusError {
