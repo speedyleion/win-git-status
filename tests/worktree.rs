@@ -9,7 +9,7 @@ extern crate win_git_status;
 use std::fs;
 use std::path::Path;
 use temp_testdir::TempDir;
-use win_git_status::worktree::{Status, WorkTreeEntry};
+use win_git_status::status::{Status, StatusEntry};
 use win_git_status::{Index, WorkTree};
 
 mod common;
@@ -66,9 +66,9 @@ fn worktree_diff_with_dirty_submodule() {
     let index = Index::new(&index_file).unwrap();
 
     let value = WorkTree::diff_against_index(&super_repo, index).unwrap();
-    let entries = vec![WorkTreeEntry {
+    let entries = vec![StatusEntry {
         name: "sub_repo_dir/".to_string(),
-        state: Status::MODIFIED,
+        state: Status::Modified,
     }];
 
     assert_eq!(value.entries, entries);

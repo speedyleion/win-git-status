@@ -8,7 +8,7 @@ mod direntry;
 mod dirstat;
 mod index;
 mod tree;
-mod status;
+pub mod status;
 mod repo_status;
 mod error;
 pub mod worktree;
