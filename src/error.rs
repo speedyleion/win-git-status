@@ -19,4 +19,3 @@ impl From<io::Error> for StatusError {
         }
     }
 }
-

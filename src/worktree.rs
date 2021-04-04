@@ -13,10 +13,10 @@ use std::sync::{Arc, Mutex};
 
 use crate::direntry::DirEntry;
 use crate::dirstat::DirectoryStat;
-use crate::Index;
-use crate::status::{Status, StatusEntry};
-use std::fs;
 use crate::error::StatusError;
+use crate::status::{Status, StatusEntry};
+use crate::Index;
+use std::fs;
 
 #[derive(Debug, Default, Clone)]
 struct IndexState {
@@ -127,13 +127,10 @@ fn process_directory(
     match index_dir_entry {
         // None happens when dealing with an empty repo, normally we don't have empty index
         // directories, since git tracks files not directories
-        None => return,
-        Some(dir_entry) => get_file_deltas(
-            children,
-            dir_entry,
-            index,
-            &read_dir_state.changed_files,
-        ),
+        None => {}
+        Some(dir_entry) => {
+            get_file_deltas(children, dir_entry, index, &read_dir_state.changed_files)
+        }
     }
 }
 

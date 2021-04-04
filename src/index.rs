@@ -20,8 +20,8 @@ use std::path::Path;
 
 use crate::direntry::{DirEntry, FileStat};
 
-use std::collections::HashMap;
 use crate::error::StatusError;
+use std::collections::HashMap;
 
 impl From<nom::Err<nom::error::Error<&[u8]>>> for StatusError {
     fn from(err: nom::Err<nom::error::Error<&[u8]>>) -> StatusError {

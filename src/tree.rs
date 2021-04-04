@@ -5,9 +5,9 @@
  *          https://www.boost.org/LICENSE_1_0.txt)
  */
 
+use crate::status::{Status, StatusEntry};
 use git2::{Repository, StatusOptions, StatusShow, Statuses};
 use std::path::Path;
-use crate::status::{Status, StatusEntry};
 
 /// A tree of a repo.
 ///

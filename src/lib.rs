@@ -6,15 +6,15 @@
  */
 mod direntry;
 mod dirstat;
-mod index;
-mod tree;
-pub mod status;
-mod repo_status;
 mod error;
+mod index;
+mod repo_status;
+pub mod status;
+mod tree;
 pub mod worktree;
 
 pub use direntry::DirEntry;
 pub use index::Index;
+pub use repo_status::RepoStatus;
 pub use tree::TreeDiff;
 pub use worktree::WorkTree;
-pub use repo_status::RepoStatus;

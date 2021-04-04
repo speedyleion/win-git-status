@@ -5,9 +5,9 @@
  *          https://www.boost.org/LICENSE_1_0.txt)
  */
 
-use crate::{WorkTree, TreeDiff, Index};
-use std::path::Path;
 use crate::error::StatusError;
+use crate::{Index, TreeDiff, WorkTree};
+use std::path::Path;
 
 #[derive(Debug)]
 pub struct RepoStatus {
@@ -29,7 +29,10 @@ impl RepoStatus {
         let index = Index::new(&*index_file)?;
         let work_tree_diff = WorkTree::diff_against_index(path, index)?;
         let index_diff = TreeDiff::diff_against_index(path);
-        Ok(RepoStatus { index_diff, work_tree_diff })
+        Ok(RepoStatus {
+            index_diff,
+            work_tree_diff,
+        })
     }
 }
 
@@ -66,7 +69,7 @@ mod tests {
             // No parents yet this is the first commit
             &[],
         )
-            .unwrap();
+        .unwrap();
     }
 
     #[test]
