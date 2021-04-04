@@ -78,7 +78,7 @@ mod tests {
         let mut index = repo.index().unwrap();
         let root = repo.path().parent().unwrap();
         let full_path = root.join(file);
-
+        fs::create_dir_all(full_path.parent().unwrap()).unwrap();
         fs::write(&full_path, "staged changes").unwrap();
         index.add_path(&file).unwrap();
         index.write().unwrap();
@@ -136,6 +136,52 @@ mod tests {
                 entries: vec![TreeDiffEntry {
                     name: names[0].to_string(),
                     state: Status::Modified
+                }]
+            }
+        );
+    }
+
+    #[test]
+    fn test_get_tree_diff_a_new_file() {
+        let names = vec!["one.baz"];
+        let files = names.iter().map(|n| Path::new(n)).collect();
+        let temp_dir = TempDir::default();
+        let repo_path = temp_dir.to_str().unwrap();
+        test_repo(repo_path, &files);
+
+        let new_file = "hello/dir/name.txt";
+        stage_file(repo_path, Path::new(new_file));
+        let diff = TreeDiff::diff_against_index(&temp_dir);
+        assert_eq!(
+            diff,
+            TreeDiff {
+                entries: vec![TreeDiffEntry {
+                    name: new_file.to_string(),
+                    state: Status::New
+                }]
+            }
+        );
+    }
+
+    #[test]
+    fn test_get_tree_diff_a_deleted_file() {
+        let names = vec!["one.baz", "what.foo", "a/nested/flie"];
+        let files = names.iter().map(|n| Path::new(n)).collect();
+        let temp_dir = TempDir::default();
+        let repo_path = temp_dir.to_str().unwrap();
+        test_repo(repo_path, &files);
+
+        let repo = Repository::open(repo_path).unwrap();
+        let mut index = repo.index().unwrap();
+        index.remove_path(Path::new(names[1])).unwrap();
+        index.write().unwrap();
+        let diff = TreeDiff::diff_against_index(&temp_dir);
+        assert_eq!(
+            diff,
+            TreeDiff {
+                entries: vec![TreeDiffEntry {
+                    name: names[1].to_string(),
+                    state: Status::Deleted
                 }]
             }
         );
