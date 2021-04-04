@@ -8,6 +8,8 @@ mod direntry;
 mod dirstat;
 mod index;
 mod tree;
+mod status;
+mod repo_status;
 pub mod worktree;
 
 pub use direntry::DirEntry;

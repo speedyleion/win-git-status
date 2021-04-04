@@ -23,22 +23,9 @@ use crate::direntry::{DirEntry, FileStat};
 
 use std::collections::HashMap;
 
-#[derive(Debug)]
-pub struct GitStatusError {
-    message: String,
-}
-
-impl From<io::Error> for GitStatusError {
-    fn from(err: io::Error) -> GitStatusError {
-        GitStatusError {
-            message: err.to_string(),
-        }
-    }
-}
-
-impl From<nom::Err<nom::error::Error<&[u8]>>> for GitStatusError {
-    fn from(err: nom::Err<nom::error::Error<&[u8]>>) -> GitStatusError {
-        GitStatusError {
+impl From<nom::Err<nom::error::Error<&[u8]>>> for StatusError {
+    fn from(err: nom::Err<nom::error::Error<&[u8]>>) -> StatusError {
+        StatusError {
             message: err.to_string(),
         }
     }
@@ -75,7 +62,7 @@ impl Index {
     ///
     /// * `path` - The path to a git repo.  This logic will _not_ search up parent directories for
     ///     a git repo
-    pub fn new(path: &Path) -> Result<Index, GitStatusError> {
+    pub fn new(path: &Path) -> Result<Index, StatusError> {
         let oid: [u8; 20] = [0; 20];
         let mut buffer: Vec<u8> = Vec::new();
         File::open(&path).and_then(|mut f| f.read_to_end(&mut buffer))?;

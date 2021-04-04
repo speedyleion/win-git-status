@@ -14,33 +14,14 @@ use std::sync::{Arc, Mutex};
 use crate::direntry::DirEntry;
 use crate::dirstat::DirectoryStat;
 use crate::Index;
+use crate::status::{Status, StatusEntry};
 use std::fs;
-
-#[derive(PartialEq, Eq, Debug, Clone)]
-pub enum Status {
-    CURRENT,
-    NEW,
-    MODIFIED,
-    DELETED,
-}
-
-impl Default for Status {
-    fn default() -> Self {
-        Status::CURRENT
-    }
-}
-
-#[derive(PartialEq, Eq, Debug, Default, Clone)]
-pub struct WorkTreeEntry {
-    pub name: String,
-    pub state: Status,
-}
 
 #[derive(Debug, Default, Clone)]
 struct IndexState {
     path: PathBuf,
     index: Arc<Index>,
-    changed_files: Arc<Mutex<Vec<WorkTreeEntry>>>,
+    changed_files: Arc<Mutex<Vec<StatusEntry>>>,
 }
 
 #[derive(Debug)]
@@ -63,7 +44,7 @@ impl From<jwalk::Error> for WorkTreeError {
 #[derive(Debug)]
 pub struct WorkTree {
     path: String,
-    pub entries: Vec<WorkTreeEntry>,
+    pub entries: Vec<StatusEntry>,
 }
 
 impl WorkTree {
@@ -76,6 +57,7 @@ impl WorkTree {
     pub fn diff_against_index(path: &Path, index: Index) -> Result<WorkTree, WorkTreeError> {
         WorkTree::diff_against_index_recursive(path, index, true)
     }
+
     pub fn diff_against_index_recursive(
         path: &Path,
         index: Index,
@@ -157,7 +139,7 @@ fn get_file_deltas(
     worktree: &mut Vec<Result<jwalk::DirEntry<(IndexState, bool)>, jwalk::Error>>,
     index_entry: &[DirEntry],
     index: &Arc<Index>,
-    file_changes: &Mutex<Vec<WorkTreeEntry>>,
+    file_changes: &Mutex<Vec<StatusEntry>>,
 ) {
     let mut worktree_iter = worktree.iter_mut();
     let mut index_iter = index_entry.iter();
@@ -182,7 +164,7 @@ fn get_file_deltas(
                     worktree_file = worktree_iter.next();
                 }
                 Ordering::Greater => {
-                    file_changes.lock().unwrap().push(WorkTreeEntry {
+                    file_changes.lock().unwrap().push(StatusEntry {
                         name: i_file.name.to_string(),
                         state: Status::DELETED,
                     });
@@ -198,7 +180,7 @@ fn get_file_deltas(
         }
     }
     while let Some(i_file) = index_file {
-        file_changes.lock().unwrap().push(WorkTreeEntry {
+        file_changes.lock().unwrap().push(StatusEntry {
             name: i_file.name.to_string(),
             state: Status::DELETED,
         });
@@ -234,7 +216,7 @@ fn get_relative_entry_path_name(entry: &jwalk::DirEntry<(IndexState, bool)>) -> 
 fn process_new_item(
     dir_entry: &mut jwalk::DirEntry<(IndexState, bool)>,
     index: &Arc<Index>,
-) -> Option<WorkTreeEntry> {
+) -> Option<StatusEntry> {
     let mut name = get_relative_entry_path_name(dir_entry);
     if dir_entry.file_type.is_dir() {
         if index.entries.contains_key(&name) {
@@ -244,7 +226,7 @@ fn process_new_item(
         name.push('/');
     }
 
-    Some(WorkTreeEntry {
+    Some(StatusEntry {
         name,
         state: Status::NEW,
     })
@@ -255,7 +237,7 @@ fn lookup_git_link(git_link: &Path) -> Result<String, Box<dyn std::error::Error 
     let link = contents.split(' ').last().unwrap().to_string();
     Ok(link)
 }
-fn submodule_status(dir_entry: &mut jwalk::DirEntry<(IndexState, bool)>) -> Option<WorkTreeEntry> {
+fn submodule_status(dir_entry: &mut jwalk::DirEntry<(IndexState, bool)>) -> Option<StatusEntry> {
     let path = dir_entry.path();
     let index_file = lookup_git_link(&path.join(".git")).unwrap();
     let index_file = path.join(index_file);
@@ -269,7 +251,7 @@ fn submodule_status(dir_entry: &mut jwalk::DirEntry<(IndexState, bool)>) -> Opti
     let mut name = get_relative_entry_path_name(dir_entry);
     name.push('/');
 
-    Some(WorkTreeEntry {
+    Some(StatusEntry {
         name,
         state: Status::MODIFIED,
     })
@@ -279,7 +261,7 @@ fn process_tracked_item(
     dir_entry: &mut jwalk::DirEntry<(IndexState, bool)>,
     index_entry: &DirEntry,
     stats: &mut Option<DirectoryStat>,
-) -> Option<WorkTreeEntry> {
+) -> Option<StatusEntry> {
     if dir_entry.file_type.is_dir() {
         // Be sure and don't walk into submodules from here
         dir_entry.read_children_path = None;
@@ -288,7 +270,7 @@ fn process_tracked_item(
 
     if is_modified(dir_entry, index_entry, stats) {
         let name = get_relative_entry_path_name(dir_entry);
-        return Some(WorkTreeEntry {
+        return Some(StatusEntry {
             name,
             state: Status::MODIFIED,
         });
@@ -361,7 +343,7 @@ mod tests {
         let dir_entries = index.entries.get_mut("").unwrap();
         dir_entries[0].stat.size += 1;
         let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
-        let entries = vec![WorkTreeEntry {
+        let entries = vec![StatusEntry {
             name: entry_name.to_string(),
             state: Status::MODIFIED,
         }];
@@ -375,7 +357,7 @@ mod tests {
         let dir_entries = index.entries.get_mut("").unwrap();
         dir_entries[0].stat.mtime += 1;
         let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
-        let entries = vec![WorkTreeEntry {
+        let entries = vec![StatusEntry {
             name: entry_name.to_string(),
             state: Status::MODIFIED,
         }];
@@ -395,7 +377,7 @@ mod tests {
         let dir_entries = index.entries.get_mut("dir_1/dir_2/dir_3").unwrap();
         dir_entries[0].stat.size += 1;
         let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
-        let entries = vec![WorkTreeEntry {
+        let entries = vec![StatusEntry {
             name: "dir_1/dir_2/dir_3/file.txt".to_string(),
             state: Status::MODIFIED,
         }];
@@ -411,7 +393,7 @@ mod tests {
         fs::write(&new_file, "stuff").unwrap();
 
         let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
-        let entries = vec![WorkTreeEntry {
+        let entries = vec![StatusEntry {
             name: new_file_name.to_string(),
             state: Status::NEW,
         }];
@@ -431,9 +413,9 @@ mod tests {
         }
 
         let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
-        let entries: Vec<WorkTreeEntry> = new_file_names
+        let entries: Vec<StatusEntry> = new_file_names
             .iter()
-            .map(|&n| WorkTreeEntry {
+            .map(|&n| StatusEntry {
                 name: n.to_string(),
                 state: Status::NEW,
             })
@@ -449,7 +431,7 @@ mod tests {
         fs::remove_file(temp_dir.join("file_2.txt")).unwrap();
 
         let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
-        let entries = vec![WorkTreeEntry {
+        let entries = vec![StatusEntry {
             name: "file_2.txt".to_string(),
             state: Status::DELETED,
         }];
@@ -464,7 +446,7 @@ mod tests {
         fs::remove_file(temp_dir.join("foo.txt")).unwrap();
 
         let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
-        let entries = vec![WorkTreeEntry {
+        let entries = vec![StatusEntry {
             name: "foo.txt".to_string(),
             state: Status::DELETED,
         }];

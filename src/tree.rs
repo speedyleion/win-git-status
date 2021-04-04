@@ -7,32 +7,13 @@
 
 use git2::{Repository, StatusOptions, StatusShow, Statuses};
 use std::path::Path;
-
-#[derive(PartialEq, Eq, Debug, Clone)]
-pub enum Status {
-    Current,
-    New,
-    Modified,
-    Deleted,
-}
-
-impl Default for Status {
-    fn default() -> Self {
-        Status::Current
-    }
-}
-
-#[derive(PartialEq, Eq, Debug, Default, Clone)]
-pub struct TreeDiffEntry {
-    pub name: String,
-    pub state: Status,
-}
+use crate::status::{Status, StatusEntry};
 
 /// A tree of a repo.
 ///
 #[derive(Debug, Default, PartialEq)]
 pub struct TreeDiff {
-    pub entries: Vec<TreeDiffEntry>,
+    pub entries: Vec<StatusEntry>,
 }
 
 impl TreeDiff {
@@ -48,7 +29,7 @@ impl TreeDiff {
         let mut entries = vec![];
         for status in statuses.iter() {
             let state = TreeDiff::git2_status_to_treediff_status(status.status());
-            entries.push(TreeDiffEntry {
+            entries.push(StatusEntry {
                 name: status.path().unwrap().to_string(),
                 state,
             });
@@ -133,7 +114,7 @@ mod tests {
         assert_eq!(
             diff,
             TreeDiff {
-                entries: vec![TreeDiffEntry {
+                entries: vec![StatusEntry {
                     name: names[0].to_string(),
                     state: Status::Modified
                 }]
@@ -155,7 +136,7 @@ mod tests {
         assert_eq!(
             diff,
             TreeDiff {
-                entries: vec![TreeDiffEntry {
+                entries: vec![StatusEntry {
                     name: new_file.to_string(),
                     state: Status::New
                 }]
@@ -179,7 +160,7 @@ mod tests {
         assert_eq!(
             diff,
             TreeDiff {
-                entries: vec![TreeDiffEntry {
+                entries: vec![StatusEntry {
                     name: names[1].to_string(),
                     state: Status::Deleted
                 }]
