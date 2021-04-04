@@ -16,7 +16,7 @@ pub struct RepoStatus {
 }
 
 impl RepoStatus {
-    pub(crate) fn branch_name(&self) -> String {
+    pub fn branch_name(&self) -> String {
         "toasty".to_string()
     }
 }

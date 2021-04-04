@@ -7,4 +7,5 @@ fn main() {
     let path = Path::new(&args[1]);
     let status = RepoStatus::new(path).unwrap();
     println!("{:?}", status);
+    println!("{:?}", status.branch_name());
 }
