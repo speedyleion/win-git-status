@@ -122,14 +122,19 @@ fn process_directory(
     let relative_path = diff_paths(path, &read_dir_state.path).unwrap();
     let unix_path = relative_path.to_str().unwrap().replace("\\", "/");
 
-    let index_dir_entry = index.entries.get(&unix_path).unwrap();
+    let index_dir_entry = index.entries.get(&unix_path);
 
-    get_file_deltas(
-        children,
-        index_dir_entry,
-        index,
-        &read_dir_state.changed_files,
-    );
+    match index_dir_entry {
+        // None happens when dealing with an empty repo, normally we don't have empty index
+        // directories, since git tracks files not directories
+        None => return,
+        Some(dir_entry) => get_file_deltas(
+            children,
+            dir_entry,
+            index,
+            &read_dir_state.changed_files,
+        ),
+    }
 }
 
 fn get_file_deltas(
