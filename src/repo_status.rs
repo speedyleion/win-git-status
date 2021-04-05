@@ -17,21 +17,10 @@ pub struct RepoStatus {
     index_diff: TreeDiff,
     work_tree_diff: WorkTree,
 }
+
 impl Debug for RepoStatus {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{:?}\n{:?}", self.index_diff, self.work_tree_diff)
-    }
-}
-
-impl RepoStatus {
-    pub fn branch_name(&self) -> Option<String> {
-        let branch = self.repo.head().unwrap();
-        let name = branch.name().unwrap();
-        let short_name = name.strip_prefix("refs/heads/");
-        match short_name {
-            None => None,
-            Some(branch_name) => Some(branch_name.to_string()),
-        }
     }
 }
 
@@ -49,6 +38,20 @@ impl RepoStatus {
             index_diff,
             work_tree_diff,
         })
+    }
+    pub(crate) fn get_branch_message(&self) -> String {
+        let branch_name = "On branch ".to_string() + &self.branch_name().unwrap();
+        branch_name
+    }
+
+    fn branch_name(&self) -> Option<String> {
+        let branch = self.repo.head().unwrap();
+        let name = branch.name().unwrap();
+        let short_name = name.strip_prefix("refs/heads/");
+        match short_name {
+            None => None,
+            Some(branch_name) => Some(branch_name.to_string()),
+        }
     }
 }
 
@@ -126,5 +129,33 @@ mod tests {
 
         let status = RepoStatus::new(&temp_dir).unwrap();
         assert_eq!(status.branch_name(), None);
+    }
+
+    #[test]
+    fn test_get_branch_message_normal() {
+        let temp_dir = TempDir::default();
+        let repo = test_repo(temp_dir.to_str().unwrap(), &vec![]);
+        let commit = repo.head().unwrap().peel_to_commit().unwrap();
+        repo.branch("new_branch", &commit, false).unwrap();
+
+        repo.set_head("refs/heads/new_branch").unwrap();
+
+        let status = RepoStatus::new(&temp_dir).unwrap();
+        let message = status.get_branch_message();
+        assert_eq!(message, "On branch new_branch");
+    }
+
+    #[test]
+    fn test_get_branch_message_different_branch() {
+        let temp_dir = TempDir::default();
+        let repo = test_repo(temp_dir.to_str().unwrap(), &vec![]);
+        let commit = repo.head().unwrap().peel_to_commit().unwrap();
+        repo.branch("what", &commit, false).unwrap();
+
+        repo.set_head("refs/heads/what").unwrap();
+
+        let status = RepoStatus::new(&temp_dir).unwrap();
+        let message = status.get_branch_message();
+        assert_eq!(message, "On branch what");
     }
 }
