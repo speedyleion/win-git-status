@@ -7,10 +7,10 @@
 
 use crate::error::StatusError;
 use crate::{Index, TreeDiff, WorkTree};
-use std::path::Path;
-use git2::{Repository};
-use std::fmt::{Debug, Formatter};
+use git2::Repository;
 use std::fmt;
+use std::fmt::{Debug, Formatter};
+use std::path::Path;
 
 pub struct RepoStatus {
     repo: Repository,
@@ -86,7 +86,7 @@ mod tests {
                 // No parents yet this is the first commit
                 &[],
             )
-                .unwrap();
+            .unwrap();
         }
         repo
     }
@@ -94,9 +94,13 @@ mod tests {
     #[test]
     fn test_branch_name() {
         let temp_dir = TempDir::default();
-        test_repo(temp_dir.to_str().unwrap(), &vec![]);
+        let repo = test_repo(temp_dir.to_str().unwrap(), &vec![]);
+        let commit = repo.head().unwrap().peel_to_commit().unwrap();
+        repo.branch("a_branch", &commit, false).unwrap();
+
+        repo.set_head("refs/heads/a_branch").unwrap();
         let status = RepoStatus::new(&temp_dir).unwrap();
-        assert_eq!(status.branch_name().unwrap(), "main");
+        assert_eq!(status.branch_name().unwrap(), "a_branch");
     }
 
     #[test]
@@ -110,5 +114,17 @@ mod tests {
 
         let status = RepoStatus::new(&temp_dir).unwrap();
         assert_eq!(status.branch_name().unwrap(), "new_branch");
+    }
+
+    #[test]
+    fn test_detached_branch_state() {
+        let temp_dir = TempDir::default();
+        let repo = test_repo(temp_dir.to_str().unwrap(), &vec![]);
+        let commit = repo.head().unwrap().peel_to_commit().unwrap();
+
+        repo.set_head_detached(commit.as_object().id()).unwrap();
+
+        let status = RepoStatus::new(&temp_dir).unwrap();
+        assert_eq!(status.branch_name(), None);
     }
 }
