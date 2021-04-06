@@ -58,8 +58,15 @@ impl RepoStatus {
         }
     }
     fn get_remote_branch_difference_message(&self) -> String {
-        let name = self.repo.branch_upstream_name(&self.branch_name().unwrap()).unwrap();
-        let short_name = name.as_str().unwrap().strip_prefix("refs/remotes/").unwrap();
+        let name = self
+            .repo
+            .branch_upstream_name(&self.branch_name().unwrap())
+            .unwrap();
+        let short_name = name
+            .as_str()
+            .unwrap()
+            .strip_prefix("refs/remotes/")
+            .unwrap();
         "Your branch is up to date with '".to_string() + &short_name.to_string() + &"'.".to_string()
     }
 }
@@ -67,7 +74,7 @@ impl RepoStatus {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use git2::{Repository, Signature, Time, Commit};
+    use git2::{Commit, Repository, Signature, Time};
     use std::fs;
     use temp_testdir::TempDir;
 
@@ -80,14 +87,14 @@ mod tests {
     // There will also be a remote repo with branches `tip` and `half`.  The remote repo will be
     // in a sibling directory of the returned repo at the directory named `repo`.
     pub fn test_repo(path: &str, files: &Vec<&Path>) -> Repository {
-        let remote_path = path.to_string() + "/remote" ;
+        let remote_path = path.to_string() + "/remote";
         let remote_repo = Repository::init(Path::new(&remote_path)).unwrap();
         for file in files {
             commit_file(&remote_repo, file)
         }
         create_branches(&remote_repo);
 
-        let main_path = path.to_string() + "/main" ;
+        let main_path = path.to_string() + "/main";
         let repo = Repository::clone(&remote_path, &main_path).unwrap();
         for branch_name in vec!["tip", "half"] {
             let upstream_name = "origin/".to_string() + branch_name;
@@ -123,7 +130,7 @@ mod tests {
         let head = repo.head();
         let _parents = match head {
             Err(_) => vec![],
-            _ => vec![head.unwrap().peel_to_commit().unwrap()]
+            _ => vec![head.unwrap().peel_to_commit().unwrap()],
         };
         let parents: Vec<&Commit> = _parents.iter().map(|n| n).collect();
         let message = "Commiting file: ".to_string() + file.to_str().unwrap();
@@ -135,7 +142,7 @@ mod tests {
             &tree,
             &parents[..],
         )
-            .unwrap();
+        .unwrap();
     }
 
     #[test]
