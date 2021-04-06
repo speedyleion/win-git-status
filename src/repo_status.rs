@@ -39,6 +39,7 @@ impl RepoStatus {
             work_tree_diff,
         })
     }
+
     pub(crate) fn get_branch_message(&self) -> String {
         let branch_name = "On branch ".to_string() + &self.branch_name().unwrap();
         branch_name
@@ -46,12 +47,16 @@ impl RepoStatus {
 
     fn branch_name(&self) -> Option<String> {
         let branch = self.repo.head().unwrap();
-        let name = branch.name().unwrap();
-        let short_name = name.strip_prefix("refs/heads/");
-        match short_name {
+        let name = branch.name();
+        match name {
             None => None,
             Some(branch_name) => Some(branch_name.to_string()),
         }
+    }
+    fn get_remote_branch_difference_message(&self) -> String {
+        let name = self.repo.branch_upstream_name(&self.branch_name().unwrap()).unwrap();
+        let short_name = name.as_str().unwrap().strip_prefix("refs/remotes/").unwrap();
+        "Your branch is up to date with '".to_string() + &short_name.to_string() + &"'".to_string()
     }
 }
 
@@ -157,5 +162,39 @@ mod tests {
         let status = RepoStatus::new(&temp_dir).unwrap();
         let message = status.get_branch_message();
         assert_eq!(message, "On branch what");
+    }
+
+    #[test]
+    fn test_get_remote_branch_difference_same_spot() {
+        let temp_dir = TempDir::default();
+        let repo = test_repo(temp_dir.to_str().unwrap(), &vec![]);
+        let commit = repo.head().unwrap().peel_to_commit().unwrap();
+        repo.branch("what", &commit, false).unwrap();
+
+        repo.set_head("refs/heads/what").unwrap();
+
+        let status = RepoStatus::new(&temp_dir).unwrap();
+        let message = status.get_remote_branch_difference_message();
+        assert_eq!(message, "Your branch is up to date with 'origin/what'.");
+    }
+
+    #[test]
+    fn test_get_remote_branch_different_remote_name_same_spot() {
+        let temp_dir = TempDir::default();
+        let remote_dir = temp_dir.join("remote");
+        let remote = test_repo(remote_dir.to_str().unwrap(), &vec![]);
+        let commit = remote.head().unwrap().peel_to_commit().unwrap();
+        remote.branch("sure", &commit, false).unwrap();
+
+        let main_dir = temp_dir.join("main");
+        let main_repo = Repository::clone(remote_dir.to_str().unwrap(), &main_dir).unwrap();
+        let commit = main_repo.head().unwrap().peel_to_commit().unwrap();
+        let mut branch = main_repo.branch("sure", &commit, false).unwrap();
+        branch.set_upstream(Some("origin/sure")).unwrap();
+        main_repo.set_head("refs/heads/sure").unwrap();
+
+        let status = RepoStatus::new(&main_dir).unwrap();
+        let message = status.get_remote_branch_difference_message();
+        assert_eq!(message, "Your branch is up to date with 'origin/sure'");
     }
 }
