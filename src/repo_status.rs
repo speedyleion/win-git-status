@@ -42,7 +42,9 @@ impl RepoStatus {
     }
 
     pub(crate) fn get_branch_message(&self) -> String {
-        let branch_name = "On branch ".to_string() + &self.branch_name().unwrap();
+        let name = self.branch_name().unwrap();
+        let short_name = name.strip_prefix("refs/heads/").unwrap();
+        let branch_name = "On branch ".to_string() + &short_name;
         branch_name
     }
 
@@ -51,6 +53,7 @@ impl RepoStatus {
         let name = branch.name();
         match name {
             None => None,
+            Some("HEAD") => None,
             Some(branch_name) => Some(branch_name.to_string()),
         }
     }
@@ -138,66 +141,56 @@ mod tests {
     #[test]
     fn test_branch_name() {
         let temp_dir = TempDir::default();
-        let repo = test_repo(temp_dir.to_str().unwrap(), &vec![]);
-        let commit = repo.head().unwrap().peel_to_commit().unwrap();
-        repo.branch("a_branch", &commit, false).unwrap();
-
-        repo.set_head("refs/heads/a_branch").unwrap();
-        let status = RepoStatus::new(&temp_dir).unwrap();
-        assert_eq!(status.branch_name().unwrap(), "a_branch");
+        let repo = test_repo(temp_dir.to_str().unwrap(), &vec![Path::new("why_not")]);
+        repo.set_head("refs/heads/tip").unwrap();
+        let status = RepoStatus::new(repo.path()).unwrap();
+        assert_eq!(status.branch_name().unwrap(), "refs/heads/tip");
     }
 
     #[test]
     fn test_new_branch_name() {
         let temp_dir = TempDir::default();
-        let repo = test_repo(temp_dir.to_str().unwrap(), &vec![]);
-        let commit = repo.head().unwrap().peel_to_commit().unwrap();
-        repo.branch("new_branch", &commit, false).unwrap();
+        let repo = test_repo(temp_dir.to_str().unwrap(), &vec![Path::new("why_not")]);
+        repo.set_head("refs/heads/half").unwrap();
 
-        repo.set_head("refs/heads/new_branch").unwrap();
-
-        let status = RepoStatus::new(&temp_dir).unwrap();
-        assert_eq!(status.branch_name().unwrap(), "new_branch");
+        let status = RepoStatus::new(repo.path()).unwrap();
+        assert_eq!(status.branch_name().unwrap(), "refs/heads/half");
     }
 
     #[test]
     fn test_detached_branch_state() {
         let temp_dir = TempDir::default();
-        let repo = test_repo(temp_dir.to_str().unwrap(), &vec![]);
+        let repo = test_repo(temp_dir.to_str().unwrap(), &vec![Path::new("why_not")]);
         let commit = repo.head().unwrap().peel_to_commit().unwrap();
 
         repo.set_head_detached(commit.as_object().id()).unwrap();
 
-        let status = RepoStatus::new(&temp_dir).unwrap();
+        let status = RepoStatus::new(repo.path()).unwrap();
         assert_eq!(status.branch_name(), None);
     }
 
     #[test]
     fn test_get_branch_message_normal() {
         let temp_dir = TempDir::default();
-        let repo = test_repo(temp_dir.to_str().unwrap(), &vec![]);
-        let commit = repo.head().unwrap().peel_to_commit().unwrap();
-        repo.branch("new_branch", &commit, false).unwrap();
+        let repo = test_repo(temp_dir.to_str().unwrap(), &vec![Path::new("a_file")]);
 
-        repo.set_head("refs/heads/new_branch").unwrap();
+        repo.set_head("refs/heads/tip").unwrap();
 
-        let status = RepoStatus::new(&temp_dir).unwrap();
+        let status = RepoStatus::new(repo.path()).unwrap();
         let message = status.get_branch_message();
-        assert_eq!(message, "On branch new_branch");
+        assert_eq!(message, "On branch tip");
     }
 
     #[test]
     fn test_get_branch_message_different_branch() {
         let temp_dir = TempDir::default();
-        let repo = test_repo(temp_dir.to_str().unwrap(), &vec![]);
-        let commit = repo.head().unwrap().peel_to_commit().unwrap();
-        repo.branch("what", &commit, false).unwrap();
+        let repo = test_repo(temp_dir.to_str().unwrap(), &vec![Path::new("i_guess")]);
 
-        repo.set_head("refs/heads/what").unwrap();
+        repo.set_head("refs/heads/half").unwrap();
 
-        let status = RepoStatus::new(&temp_dir).unwrap();
+        let status = RepoStatus::new(repo.path()).unwrap();
         let message = status.get_branch_message();
-        assert_eq!(message, "On branch what");
+        assert_eq!(message, "On branch half");
     }
 
     #[test]
