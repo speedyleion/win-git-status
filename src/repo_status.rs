@@ -8,7 +8,7 @@
 use crate::error::StatusError;
 use crate::{Index, TreeDiff, WorkTree};
 use git2::Repository;
-use indoc::{formatdoc};
+use indoc::formatdoc;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::path::Path;
@@ -43,7 +43,7 @@ impl RepoStatus {
     }
 
     pub fn message(&self) -> Result<String, StatusError> {
-       Ok(self.get_remote_branch_difference_message())
+        Ok(self.get_remote_branch_difference_message())
     }
 
     pub fn get_branch_message(&self) -> String {
@@ -121,9 +121,9 @@ impl RepoStatus {
 mod tests {
     use super::*;
     use git2::{BranchType, Commit, Repository, Signature, Time};
+    use indoc::indoc;
     use std::fs;
     use temp_testdir::TempDir;
-    use indoc::indoc;
 
     // A test repo to be able to test message state generation.  This repo will have 2 branches
     // created:
