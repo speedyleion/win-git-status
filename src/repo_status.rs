@@ -42,7 +42,7 @@ impl RepoStatus {
         })
     }
 
-    pub(crate) fn get_branch_message(&self) -> String {
+    pub fn get_branch_message(&self) -> String {
         let name = self.branch_name().unwrap();
         let short_name = name.strip_prefix("refs/heads/").unwrap();
         let branch_name = "On branch ".to_string() + &short_name;
@@ -78,22 +78,24 @@ impl RepoStatus {
         let (before, after) = self.repo.graph_ahead_behind(local_oid, upstream_oid).unwrap();
 
         match before {
-            0 => match after {
-                0 => {
-                    formatdoc! {"\
+            0 => {
+                match after {
+                    0 => {
+                        formatdoc! {"\
                         Your branch is up to date with '{branch}'.",
                         branch=short_name }
-                },
-                _ => {
-                    let plural = match after {
-                        1 => "",
-                        _ => "s",
-                    };
-                    formatdoc!{"\
+                    },
+                    _ => {
+                        let plural = match after {
+                            1 => "",
+                            _ => "s",
+                        };
+                        formatdoc!{"\
                         Your branch is behind '{branch}' by {commits} commit{plural}, and can be fast-forwarded.
                           (use \"git pull\" to update your local branch)",
                           branch=short_name, commits=after, plural=plural }
-                },
+                    },
+                }
             },
             _ => {
                 let plural = match before {
@@ -153,7 +155,7 @@ mod tests {
         let mut walker = repo.revwalk().unwrap();
         walker.push(commit.id()).unwrap();
         let count = walker.count();
-        let half = (count + 1) / 2;
+        let half = count / 2;
         let mut walker = repo.revwalk().unwrap();
         walker.push(commit.id()).unwrap();
         let half_oid = walker.skip(half).next().unwrap().unwrap();
