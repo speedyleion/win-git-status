@@ -14,6 +14,7 @@ pathdiff = "0.2.0"
 ntapi = "0.3.6"
 memoffset = "0.6.1"
 git2 = "0.13"
+indoc = "1.0"
 
 [dependencies.winapi]
 version = "0.3.9"
@@ -21,4 +22,3 @@ features = ["fileapi", "winbase"]
 
 [dev-dependencies]
 temp_testdir = "0.2"
-indoc = "1.0"

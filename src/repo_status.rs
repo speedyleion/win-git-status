@@ -11,6 +11,7 @@ use git2::Repository;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::path::Path;
+use indoc::{indoc, formatdoc};
 
 pub struct RepoStatus {
     repo: Repository,
@@ -79,7 +80,13 @@ impl RepoStatus {
         match before {
             0 => match after {
                 0 => "Your branch is up to date with '".to_string() + &short_name.to_string() + &"'.".to_string(),
-                _ => "What".to_string(),
+                _ => {
+                    formatdoc!{"\
+                        Your branch is behind '{branch}' by {commits} commits, and can be fast-forwarded.
+                          (use \"git pull\" to update your local branch)",
+                          branch=short_name, commits=after
+                    }
+                },
             },
             _ => "why".to_string(),
         }
@@ -92,7 +99,6 @@ mod tests {
     use git2::{Commit, Repository, Signature, Time, BranchType};
     use std::fs;
     use temp_testdir::TempDir;
-    use indoc::indoc;
 
     // A test repo to be able to test message state generation.  This repo will have 2 branches
     // created:
@@ -260,8 +266,7 @@ mod tests {
         let message = status.get_remote_branch_difference_message();
         let expected = indoc!{"\
             Your branch is behind 'origin/tip' by 2 commits, and can be fast-forwarded.
-              (use \"git pull\" to update your local branch)
-        "};
+              (use \"git pull\" to update your local branch)"};
         assert_eq!(message, expected);
     }
 }
