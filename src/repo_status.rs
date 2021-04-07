@@ -67,16 +67,32 @@ impl RepoStatus {
             .unwrap()
             .strip_prefix("refs/remotes/")
             .unwrap();
-        "Your branch is up to date with '".to_string() + &short_name.to_string() + &"'.".to_string()
+
+        let head = self.repo.head().unwrap();
+        let head_commit = head.peel_to_commit().unwrap();
+        let local_oid = head_commit.id();
+        let upstream_ref = self.repo.find_reference(name.as_str().unwrap()).unwrap();
+        let upstream_commit = upstream_ref.peel_to_commit().unwrap();
+        let upstream_oid = upstream_commit.id();
+        let (before, after) = self.repo.graph_ahead_behind(local_oid, upstream_oid).unwrap();
+
+        match before {
+            0 => match after {
+                0 => "Your branch is up to date with '".to_string() + &short_name.to_string() + &"'.".to_string(),
+                _ => "What".to_string(),
+            },
+            _ => "why".to_string(),
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use git2::{Commit, Repository, Signature, Time};
+    use git2::{Commit, Repository, Signature, Time, BranchType};
     use std::fs;
     use temp_testdir::TempDir;
+    use indoc::indoc;
 
     // A test repo to be able to test message state generation.  This repo will have 2 branches
     // created:
@@ -219,5 +235,25 @@ mod tests {
         let status = RepoStatus::new(repo.path()).unwrap();
         let message = status.get_remote_branch_difference_message();
         assert_eq!(message, "Your branch is up to date with 'origin/half'.");
+    }
+
+    #[test]
+    fn test_behind_remote_branch() {
+        let file_names = vec!["one", "two", "three", "four"];
+        let files = file_names.iter().map(|n| Path::new(n)).collect();
+        let temp_dir = TempDir::default();
+        let repo = test_repo(temp_dir.to_str().unwrap(), &files);
+
+        repo.set_head("refs/heads/half").unwrap();
+        let mut branch = repo.find_branch("half", BranchType::Local).unwrap();
+        branch.set_upstream(Some("origin/tip")).unwrap();
+
+        let status = RepoStatus::new(repo.path()).unwrap();
+        let message = status.get_remote_branch_difference_message();
+        let expected = indoc!{"\
+            Your branch is behind 'origin/tip' by 2 commits, and can be fast-forwarded.
+              (use \"git pull\" to update your local branch)
+        "};
+        assert_eq!(message, expected);
     }
 }
