@@ -127,7 +127,15 @@ mod tests {
     fn create_branches(repo: &Repository) {
         let commit = repo.head().unwrap().peel_to_commit().unwrap();
         repo.branch("tip", &commit, false).unwrap();
-        repo.branch("half", &commit, false).unwrap();
+        let mut walker = repo.revwalk().unwrap();
+        walker.push(commit.id()).unwrap();
+        let count = walker.count();
+        let half = (count + 1) / 2;
+        let mut walker = repo.revwalk().unwrap();
+        walker.push(commit.id()).unwrap();
+        let half_oid = walker.skip(half).next().unwrap().unwrap();
+        let half_commit = repo.find_commit(half_oid).unwrap();
+        repo.branch("half", &half_commit, false).unwrap();
     }
 
     fn commit_file(repo: &Repository, file: &Path) {
