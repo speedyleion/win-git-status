@@ -84,11 +84,16 @@ impl RepoStatus {
                     formatdoc!{"\
                         Your branch is behind '{branch}' by {commits} commits, and can be fast-forwarded.
                           (use \"git pull\" to update your local branch)",
-                          branch=short_name, commits=after
-                    }
+                          branch=short_name, commits=after }
                 },
             },
-            _ => "why".to_string(),
+            _ => {
+                formatdoc! {"\
+                    Your branch is ahead of '{branch}' by {commits} commit.
+                      (use \"git push\" to publish your local commits)",
+                      branch=short_name, commits=before
+                      }
+            },
         }
     }
 }
@@ -267,6 +272,25 @@ mod tests {
         let expected = indoc!{"\
             Your branch is behind 'origin/tip' by 2 commits, and can be fast-forwarded.
               (use \"git pull\" to update your local branch)"};
+        assert_eq!(message, expected);
+    }
+
+    #[test]
+    fn test_ahead_of_remote_branch() {
+        let file_names = vec!["one", "two"];
+        let files = file_names.iter().map(|n| Path::new(n)).collect();
+        let temp_dir = TempDir::default();
+        let repo = test_repo(temp_dir.to_str().unwrap(), &files);
+
+        repo.set_head("refs/heads/tip").unwrap();
+        let mut branch = repo.find_branch("tip", BranchType::Local).unwrap();
+        branch.set_upstream(Some("origin/half")).unwrap();
+
+        let status = RepoStatus::new(repo.path()).unwrap();
+        let message = status.get_remote_branch_difference_message();
+        let expected = indoc!{"\
+            Your branch is ahead of 'origin/half' by 1 commit.
+              (use \"git push\" to publish your local commits)"};
         assert_eq!(message, expected);
     }
 }
