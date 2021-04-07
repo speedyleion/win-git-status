@@ -79,19 +79,31 @@ impl RepoStatus {
 
         match before {
             0 => match after {
-                0 => "Your branch is up to date with '".to_string() + &short_name.to_string() + &"'.".to_string(),
+                0 => {
+                    formatdoc! {"\
+                        Your branch is up to date with '{branch}'.",
+                        branch=short_name }
+                },
                 _ => {
+                    let plural = match after {
+                        1 => "",
+                        _ => "s",
+                    };
                     formatdoc!{"\
-                        Your branch is behind '{branch}' by {commits} commits, and can be fast-forwarded.
+                        Your branch is behind '{branch}' by {commits} commit{plural}, and can be fast-forwarded.
                           (use \"git pull\" to update your local branch)",
-                          branch=short_name, commits=after }
+                          branch=short_name, commits=after, plural=plural }
                 },
             },
             _ => {
+                let plural = match before {
+                    1 => "",
+                    _ => "s",
+                };
                 formatdoc! {"\
-                    Your branch is ahead of '{branch}' by {commits} commit.
+                    Your branch is ahead of '{branch}' by {commits} commit{plural}.
                       (use \"git push\" to publish your local commits)",
-                      branch=short_name, commits=before
+                      branch=short_name, commits=before, plural=plural
                       }
             },
         }
@@ -276,7 +288,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ahead_of_remote_branch() {
+    fn test_ahead_of_remote_branch_by_one() {
         let file_names = vec!["one", "two"];
         let files = file_names.iter().map(|n| Path::new(n)).collect();
         let temp_dir = TempDir::default();
@@ -290,6 +302,25 @@ mod tests {
         let message = status.get_remote_branch_difference_message();
         let expected = indoc!{"\
             Your branch is ahead of 'origin/half' by 1 commit.
+              (use \"git push\" to publish your local commits)"};
+        assert_eq!(message, expected);
+    }
+
+    #[test]
+    fn test_ahead_of_remote_branch_by_three() {
+        let file_names = vec!["one", "two", "three", "four", "five", "six"];
+        let files = file_names.iter().map(|n| Path::new(n)).collect();
+        let temp_dir = TempDir::default();
+        let repo = test_repo(temp_dir.to_str().unwrap(), &files);
+
+        repo.set_head("refs/heads/tip").unwrap();
+        let mut branch = repo.find_branch("tip", BranchType::Local).unwrap();
+        branch.set_upstream(Some("origin/half")).unwrap();
+
+        let status = RepoStatus::new(repo.path()).unwrap();
+        let message = status.get_remote_branch_difference_message();
+        let expected = indoc!{"\
+            Your branch is ahead of 'origin/half' by 3 commits.
               (use \"git push\" to publish your local commits)"};
         assert_eq!(message, expected);
     }
