@@ -6,5 +6,6 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     let path = Path::new(&args[1]);
     let status = RepoStatus::new(path).unwrap();
+    println!("{}", status.message().unwrap());
     println!("{:?}", status);
 }

@@ -8,7 +8,7 @@
 use crate::error::StatusError;
 use crate::{Index, TreeDiff, WorkTree};
 use git2::Repository;
-use indoc::{formatdoc, indoc};
+use indoc::{formatdoc};
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::path::Path;
@@ -42,11 +42,15 @@ impl RepoStatus {
         })
     }
 
+    pub fn message(&self) -> Result<String, StatusError> {
+       Ok(self.get_remote_branch_difference_message())
+    }
+
     pub fn get_branch_message(&self) -> String {
         let name = self.branch_name().unwrap();
         let short_name = name.strip_prefix("refs/heads/").unwrap();
-        let branch_name = "On branch ".to_string() + &short_name;
-        branch_name
+        let message = "On branch ".to_string();
+        message + short_name
     }
 
     fn branch_name(&self) -> Option<String> {
@@ -119,6 +123,7 @@ mod tests {
     use git2::{BranchType, Commit, Repository, Signature, Time};
     use std::fs;
     use temp_testdir::TempDir;
+    use indoc::indoc;
 
     // A test repo to be able to test message state generation.  This repo will have 2 branches
     // created:
