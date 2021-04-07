@@ -8,10 +8,10 @@
 use crate::error::StatusError;
 use crate::{Index, TreeDiff, WorkTree};
 use git2::Repository;
+use indoc::{formatdoc, indoc};
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::path::Path;
-use indoc::{indoc, formatdoc};
 
 pub struct RepoStatus {
     repo: Repository,
@@ -75,26 +75,27 @@ impl RepoStatus {
         let upstream_ref = self.repo.find_reference(name.as_str().unwrap()).unwrap();
         let upstream_commit = upstream_ref.peel_to_commit().unwrap();
         let upstream_oid = upstream_commit.id();
-        let (before, after) = self.repo.graph_ahead_behind(local_oid, upstream_oid).unwrap();
+        let (before, after) = self
+            .repo
+            .graph_ahead_behind(local_oid, upstream_oid)
+            .unwrap();
 
         match before {
-            0 => {
-                match after {
-                    0 => {
-                        formatdoc! {"\
-                        Your branch is up to date with '{branch}'.",
-                        branch=short_name }
-                    },
-                    _ => {
-                        let plural = match after {
-                            1 => "",
-                            _ => "s",
-                        };
-                        formatdoc!{"\
+            0 => match after {
+                0 => {
+                    formatdoc! {"\
+                    Your branch is up to date with '{branch}'.",
+                    branch=short_name }
+                }
+                _ => {
+                    let plural = match after {
+                        1 => "",
+                        _ => "s",
+                    };
+                    formatdoc! {"\
                         Your branch is behind '{branch}' by {commits} commit{plural}, and can be fast-forwarded.
                           (use \"git pull\" to update your local branch)",
-                          branch=short_name, commits=after, plural=plural }
-                    },
+                    branch=short_name, commits=after, plural=plural }
                 }
             },
             _ => {
@@ -105,9 +106,9 @@ impl RepoStatus {
                 formatdoc! {"\
                     Your branch is ahead of '{branch}' by {commits} commit{plural}.
                       (use \"git push\" to publish your local commits)",
-                      branch=short_name, commits=before, plural=plural
-                      }
-            },
+                branch=short_name, commits=before, plural=plural
+                }
+            }
         }
     }
 }
@@ -115,7 +116,7 @@ impl RepoStatus {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use git2::{Commit, Repository, Signature, Time, BranchType};
+    use git2::{BranchType, Commit, Repository, Signature, Time};
     use std::fs;
     use temp_testdir::TempDir;
 
@@ -283,7 +284,7 @@ mod tests {
 
         let status = RepoStatus::new(repo.path()).unwrap();
         let message = status.get_remote_branch_difference_message();
-        let expected = indoc!{"\
+        let expected = indoc! {"\
             Your branch is behind 'origin/tip' by 2 commits, and can be fast-forwarded.
               (use \"git pull\" to update your local branch)"};
         assert_eq!(message, expected);
@@ -302,7 +303,7 @@ mod tests {
 
         let status = RepoStatus::new(repo.path()).unwrap();
         let message = status.get_remote_branch_difference_message();
-        let expected = indoc!{"\
+        let expected = indoc! {"\
             Your branch is ahead of 'origin/half' by 1 commit.
               (use \"git push\" to publish your local commits)"};
         assert_eq!(message, expected);
@@ -321,7 +322,7 @@ mod tests {
 
         let status = RepoStatus::new(repo.path()).unwrap();
         let message = status.get_remote_branch_difference_message();
-        let expected = indoc!{"\
+        let expected = indoc! {"\
             Your branch is ahead of 'origin/half' by 3 commits.
               (use \"git push\" to publish your local commits)"};
         assert_eq!(message, expected);
