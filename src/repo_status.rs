@@ -51,7 +51,10 @@ impl RepoStatus {
     }
 
     pub fn get_branch_message(&self) -> String {
-        let name = self.branch_name().unwrap();
+        let name = match self.branch_name(){
+            Some(name) => name,
+            None => return self.get_detached_message()
+        };
         let short_name = name.strip_prefix("refs/heads/").unwrap();
         let message = "On branch ".to_string();
         message + short_name
@@ -128,6 +131,14 @@ impl RepoStatus {
                     }
                 }
             }
+        }
+    }
+    fn get_detached_message(&self) -> String {
+        let commit_sha = self.repo.head().unwrap().peel_to_commit().unwrap().id().to_string();
+        let short_sha = &commit_sha[..7];
+        formatdoc!{
+            "Head detached at {sha}",
+            sha=short_sha
         }
     }
 }
@@ -268,6 +279,35 @@ mod tests {
         let status = RepoStatus::new(repo.path()).unwrap();
         let message = status.get_branch_message();
         assert_eq!(message, "On branch half");
+    }
+
+    #[test]
+    fn test_get_branch_message_detached_parent() {
+        let file_names = vec!["one", "two", "three", "four"];
+        let files = file_names.iter().map(|n| Path::new(n)).collect();
+        let temp_dir = TempDir::default();
+        let repo = test_repo(temp_dir.to_str().unwrap(), &files);
+        let head = repo.head().unwrap().peel_to_commit().unwrap();
+        let parent = head.parent(0).unwrap().id();
+        repo.set_head_detached(parent).unwrap();
+
+        let status = RepoStatus::new(repo.path()).unwrap();
+        let message = status.get_branch_message();
+        assert_eq!(message, "Head detached at 17fe299");
+    }
+
+    #[test]
+    fn test_get_branch_message_detached_tip() {
+        let file_names = vec!["one", "two", "three", "four"];
+        let files = file_names.iter().map(|n| Path::new(n)).collect();
+        let temp_dir = TempDir::default();
+        let repo = test_repo(temp_dir.to_str().unwrap(), &files);
+        let head = repo.head().unwrap().peel_to_commit().unwrap();
+        repo.set_head_detached(head.id()).unwrap();
+
+        let status = RepoStatus::new(repo.path()).unwrap();
+        let message = status.get_branch_message();
+        assert_eq!(message, "Head detached at 82578fa");
     }
 
     #[test]
