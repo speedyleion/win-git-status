@@ -103,15 +103,25 @@ impl RepoStatus {
                     branch=short_name, commits=after, plural=plural }
                 }
             },
-            _ => {
-                let plural = match before {
-                    1 => "",
-                    _ => "s",
-                };
-                formatdoc! {"\
-                    Your branch is ahead of '{branch}' by {commits} commit{plural}.
-                      (use \"git push\" to publish your local commits)",
-                branch=short_name, commits=before, plural=plural
+            _ => match after {
+                0 => {
+                    let plural = match before {
+                        1 => "",
+                        _ => "s",
+                    };
+                    formatdoc! {"\
+                        Your branch is ahead of '{branch}' by {commits} commit{plural}.
+                          (use \"git push\" to publish your local commits)",
+                    branch=short_name, commits=before, plural=plural
+                    }
+                },
+                _ => {
+                    formatdoc! {"\
+                        Your branch and '{branch}' have diverged,
+                        and have {before} and {after} different commits each, respectively.
+                          (use \"git pull\" to merge the remote branch into yours)",
+                    branch=short_name, before=before, after=after
+                    }
                 }
             }
         }
