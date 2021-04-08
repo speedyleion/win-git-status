@@ -62,6 +62,7 @@ impl RepoStatus {
             Some(branch_name) => Some(branch_name.to_string()),
         }
     }
+
     fn get_remote_branch_difference_message(&self) -> String {
         let name = self
             .repo
@@ -330,6 +331,32 @@ mod tests {
         let expected = indoc! {"\
             Your branch is ahead of 'origin/half' by 3 commits.
               (use \"git push\" to publish your local commits)"};
+        assert_eq!(message, expected);
+    }
+
+    #[test]
+    fn test_diverged_from_remote_branch() {
+        let file_names = vec!["one", "two", "three", "four"];
+        let files = file_names.iter().map(|n| Path::new(n)).collect();
+        let temp_dir = TempDir::default();
+        let repo = test_repo(temp_dir.to_str().unwrap(), &files);
+
+        repo.set_head("refs/heads/half").unwrap();
+        let mut branch = repo.find_branch("half", BranchType::Local).unwrap();
+        branch.set_upstream(Some("origin/tip")).unwrap();
+
+
+        let new_files = vec!["what", "why", "where"];
+        for file in new_files {
+            commit_file(&repo, Path::new(file));
+        }
+
+        let status = RepoStatus::new(repo.path()).unwrap();
+        let message = status.get_remote_branch_difference_message();
+        let expected = indoc! {"\
+            Your branch and 'origin/tip' have diverged,
+            and have 3 and 2 different commits each, respectively.
+              (use \"git pull\" to merge the remote branch into yours)"};
         assert_eq!(message, expected);
     }
 }
