@@ -141,6 +141,9 @@ impl RepoStatus {
             sha=short_sha
         }
     }
+    fn get_unstaged_message(&self) -> Option<String> {
+        None
+    }
 }
 
 #[cfg(test)]
@@ -412,5 +415,35 @@ mod tests {
             and have 3 and 2 different commits each, respectively.
               (use \"git pull\" to merge the remote branch into yours)"};
         assert_eq!(message, expected);
+    }
+
+    #[test]
+    fn test_no_modified_files() {
+        let file_names = vec!["one", "two", "three", "four"];
+        let files = file_names.iter().map(|n| Path::new(n)).collect();
+        let temp_dir = TempDir::default();
+        let repo = test_repo(temp_dir.to_str().unwrap(), &files);
+
+        let status = RepoStatus::new(repo.path()).unwrap();
+        let message = status.get_unstaged_message();
+        assert_eq!(message, None);
+    }
+
+    #[test]
+    fn test_one_modified_file() {
+        let file_names = vec!["one", "two", "three", "four"];
+        let files = file_names.iter().map(|n| Path::new(n)).collect();
+        let temp_dir = TempDir::default();
+        let repo = test_repo(temp_dir.to_str().unwrap(), &files);
+
+        let status = RepoStatus::new(repo.path()).unwrap();
+        let message = status.get_unstaged_message();
+
+        let expected = indoc! {"\
+            Changes not staged for commit:
+              (use \"git add <file>...\" to update what will be committed)
+              (use \"git restore <file>...\" to discard changes in working directory)
+                    three"};
+        assert_eq!(message, Some(expected.to_string()));
     }
 }
