@@ -5,6 +5,8 @@
  *          https://www.boost.org/LICENSE_1_0.txt)
  */
 
+use std::fmt;
+
 /// The status of a file in relation to the rest of the git repo.
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum Status {
@@ -18,9 +20,27 @@ impl Default for Status {
         Status::Current
     }
 }
+impl fmt::Display for Status {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Status::Current => fmt.write_str(""),
+            Status::New => fmt.write_str("added:  "),
+            Status::Modified => fmt.write_str("modified: "),
+            Status::Deleted => fmt.write_str("deleted: "),
+        }
+    }
+}
 
 #[derive(PartialEq, Eq, Debug, Default, Clone)]
 pub struct StatusEntry {
     pub name: String,
     pub state: Status,
+}
+
+impl fmt::Display for StatusEntry {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.write_str(&self.state.to_string())?;
+        fmt.write_str(&self.name)?;
+        Ok(())
+    }
 }

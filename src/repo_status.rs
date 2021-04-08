@@ -142,6 +142,11 @@ impl RepoStatus {
         }
     }
     fn get_unstaged_message(&self) -> Option<String> {
+        let unstaged_files: Vec<String> = self.work_tree_diff.entries.iter().map(|e| e.to_string()).collect();
+        println!{"{:?}", self.work_tree_diff.entries};
+        if unstaged_files.len() > 0 {
+            return Some(unstaged_files[0].to_string());
+        }
         None
     }
 }
@@ -198,14 +203,18 @@ mod tests {
         repo.branch("half", &half_commit, false).unwrap();
     }
 
-    fn commit_file(repo: &Repository, file: &Path) {
-        let mut index = repo.index().unwrap();
+    fn write_to_file(repo: &Repository, file: &Path, contents: &str) {
         let root = repo.path().parent().unwrap();
         let full_path = root.join(file);
 
         // Done this way to support nested files
         fs::create_dir_all(full_path.parent().unwrap()).unwrap();
-        fs::write(&full_path, file.to_str().unwrap()).unwrap();
+        fs::write(&full_path, contents).unwrap();
+    }
+
+    fn commit_file(repo: &Repository, file: &Path) {
+        write_to_file(repo, file,file.to_str().unwrap());
+        let mut index = repo.index().unwrap();
         index.add_path(&file).unwrap();
         index.write().unwrap();
         let tree_oid = index.write_tree().unwrap();
@@ -436,6 +445,8 @@ mod tests {
         let temp_dir = TempDir::default();
         let repo = test_repo(temp_dir.to_str().unwrap(), &files);
 
+        write_to_file(&repo, files[2], "what???");
+
         let status = RepoStatus::new(repo.path()).unwrap();
         let message = status.get_unstaged_message();
 
@@ -443,7 +454,7 @@ mod tests {
             Changes not staged for commit:
               (use \"git add <file>...\" to update what will be committed)
               (use \"git restore <file>...\" to discard changes in working directory)
-                    three"};
+                    modified: three"};
         assert_eq!(message, Some(expected.to_string()));
     }
 }
