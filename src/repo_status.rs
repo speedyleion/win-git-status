@@ -43,7 +43,11 @@ impl RepoStatus {
     }
 
     pub fn message(&self) -> Result<String, StatusError> {
-        Ok(self.get_remote_branch_difference_message())
+        let branch = self.get_branch_message();
+        let remote_state = self.get_remote_branch_difference_message();
+        Ok(formatdoc!{"\
+           {branch}
+           {remote_state}", branch=branch, remote_state=remote_state})
     }
 
     pub fn get_branch_message(&self) -> String {
