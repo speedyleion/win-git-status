@@ -240,14 +240,18 @@ impl RepoStatus {
         untracked: &Option<String>,
     ) -> Option<String> {
         if staged != &None {
-            return None
+            return None;
         }
         if unstaged != &None {
-            return Some("no changes added to commit (use \"git add\" and/or \"git commit -a\")"
-                .to_string());
+            return Some(
+                "no changes added to commit (use \"git add\" and/or \"git commit -a\")".to_string(),
+            );
         }
         if untracked != &None {
-            return Some("nothing added to commit but untracked files present (use \"git add\" to track)".to_string());
+            return Some(
+                "nothing added to commit but untracked files present (use \"git add\" to track)"
+                    .to_string(),
+            );
         }
         Some("nothing to commit, working tree clean".to_string())
     }
