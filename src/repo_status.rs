@@ -188,6 +188,7 @@ impl RepoStatus {
         files=files};
         Some(message)
     }
+
     fn get_staged_message(&self) -> Option<String> {
         let staged_files: Vec<String> = self
             .index_diff
@@ -195,6 +196,11 @@ impl RepoStatus {
             .iter()
             .map(|e| e.to_string())
             .collect();
+
+        if staged_files.is_empty() {
+            return None;
+        }
+
         let files = staged_files
             .iter()
             .map(|s| &**s)
@@ -215,6 +221,11 @@ impl RepoStatus {
             .filter(|e| e.state == Status::New)
             .map(|e| e.name.to_string())
             .collect();
+
+        if untracked_files.is_empty() {
+            return None;
+        }
+
         let files = untracked_files
             .iter()
             .map(|s| &**s)
@@ -591,6 +602,18 @@ mod tests {
     }
 
     #[test]
+    fn test_no_staged_files() {
+        let file_names = vec!["one", "two", "three", "four"];
+        let files = file_names.iter().map(|n| Path::new(n)).collect();
+        let temp_dir = TempDir::default();
+        let repo = test_repo(temp_dir.to_str().unwrap(), &files);
+
+        let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
+
+        assert_eq!(status.get_staged_message(), None);
+    }
+
+    #[test]
     fn test_file_added_to_index() {
         let file_names = vec!["one", "two", "three", "four"];
         let files = file_names.iter().map(|n| Path::new(n)).collect();
@@ -637,6 +660,18 @@ mod tests {
                     new file:   some_new_file
                     modified:   two"};
         assert_eq!(message, Some(expected.to_string()));
+    }
+
+    #[test]
+    fn test_no_untracked_file() {
+        let file_names = vec!["one", "two", "three", "four"];
+        let files = file_names.iter().map(|n| Path::new(n)).collect();
+        let temp_dir = TempDir::default();
+        let repo = test_repo(temp_dir.to_str().unwrap(), &files);
+
+        let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
+
+        assert_eq!(status.get_untracked_message(), None);
     }
 
     #[test]
