@@ -19,23 +19,10 @@ to larger repositories.
 > Note: The time for `libgit` may be a little misleading as 
 > `libgit2` does not support full git status functionality
 
-There are 2 Rust packages out there that provide git functionaltiy:
-
-- [gitoxide](https://github.com/Byron/gitoxide)
-- [git2-rs](https://github.com/rust-lang/git2-rs)
-
-These packages are not being utilized in the implementation for two main reasons:
-
-- Neither one seems to have it on their roadmap to support async.  Without profiling
-  it's hard to say if async will help, but I've got a hunch that for windows it will.
-  I think it will most likely be time consuming to get a status implementation working
-  with one of these two as the backand and then try and rework to test out async performance.
-- They are not meant to replace the git cli, thus they are missing some needed features.  
-  i.e. git2-rs doesn't support getting all the information needed for a rebase status when
-  in the middle of a rebase.
-
-[git2-rs](https://github.com/rust-lang/git2-rs) is being used in the test verification.  This was
-chosen with previous exposer to the `libgit2` api.
+[git2-rs](https://github.com/rust-lang/git2-rs) is being used for some of the backend logic.  
+It provides much of the git plumbing functionality.  However [git2-rs](https://github.com/rust-lang/git2-rs)
+does not support running multi-threaded and in particular in comparing the working tree multi-threaded
+seems to really perform.  So the working tree comparison is more or less re-implemented.
 
 ## Status
 I've been trying to blog a bit about the development process at
@@ -46,23 +33,36 @@ since the functional progress is taking a bit.
 > the status on this will most likely be slow as I spin up on all the nuances 
 > of Rust.
 
-Currently ``win-git-status.exe`` will produce the debug output of comparing a repo's
-index to it's working tree. Note: The repo directory needs to be specified, and it 
-can be anywhere.
+Currently ``win-git-status.exe`` will produce a message similar to ``git status``
+Note: The repo directory needs to be specified, and it can be anywhere.
 
 For example one could do:
 
     win-git-status.exe .
 
-This would show files and or directories that are modified or "new".  
-
-This currently doesn't handle significant features like; ignore files,
-the actual commit tree, or submodules
-
+This currently doesn't handle significant features like:
+ - ignore files,
+ - merge states
+ - rebase states
+ - cherry-pick states
+ - bisect state
+ - submodules, (these are partially implemented, but won't notice commit changes)
     
 ### Performance
-Initial timings, on this repo look promising, but 
-``win-git-status`` probably isn't doing as much:
+For repos without submodules ``win-git-status`` currently does not perform as well as 
+``git status``.
 
-- 0.097s for ``git status``
-- 0.062s for ``win-git-status.exe .``
+Running on this repo:
+- 0.049s for ``git status``
+- 0.102s for ``win-git-status.exe .``
+
+For repos with submodules ``win-git-status.exe`` can be up to 6-7x faster at times.
+For one proprietary repo:
+- 1.8s for ``git status``
+- 0.3s for ``win-git-status.exe``
+
+For another proprietary repo:
+- 5.9s for ``git status``
+- 0.8s for ``win-git-status.exe``
+
+
