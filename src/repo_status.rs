@@ -143,11 +143,17 @@ impl RepoStatus {
     }
     fn get_unstaged_message(&self) -> Option<String> {
         let unstaged_files: Vec<String> = self.work_tree_diff.entries.iter().map(|e| e.to_string()).collect();
-        println!{"{:?}", self.work_tree_diff.entries};
-        if unstaged_files.len() > 0 {
-            return Some(unstaged_files[0].to_string());
+        if unstaged_files.len() == 0 {
+            return None;
         }
-        None
+        let files = unstaged_files.iter().map(|s| &**s).collect::<Vec<&str>>().join("\n        ");
+        let message = formatdoc!{"\
+            Changes not staged for commit:
+              (use \"git add <file>...\" to update what will be committed)
+              (use \"git restore <file>...\" to discard changes in working directory)
+                    {files}",
+            files=files};
+        Some(message)
     }
 }
 
@@ -204,7 +210,7 @@ mod tests {
     }
 
     fn write_to_file(repo: &Repository, file: &Path, contents: &str) {
-        let root = repo.path().parent().unwrap();
+        let root = repo.workdir().unwrap();
         let full_path = root.join(file);
 
         // Done this way to support nested files
@@ -243,7 +249,7 @@ mod tests {
         let temp_dir = TempDir::default();
         let repo = test_repo(temp_dir.to_str().unwrap(), &vec![Path::new("why_not")]);
         repo.set_head("refs/heads/tip").unwrap();
-        let status = RepoStatus::new(repo.path()).unwrap();
+        let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
         assert_eq!(status.branch_name().unwrap(), "refs/heads/tip");
     }
 
@@ -253,7 +259,7 @@ mod tests {
         let repo = test_repo(temp_dir.to_str().unwrap(), &vec![Path::new("why_not")]);
         repo.set_head("refs/heads/half").unwrap();
 
-        let status = RepoStatus::new(repo.path()).unwrap();
+        let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
         assert_eq!(status.branch_name().unwrap(), "refs/heads/half");
     }
 
@@ -265,7 +271,7 @@ mod tests {
 
         repo.set_head_detached(commit.as_object().id()).unwrap();
 
-        let status = RepoStatus::new(repo.path()).unwrap();
+        let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
         assert_eq!(status.branch_name(), None);
     }
 
@@ -276,7 +282,7 @@ mod tests {
 
         repo.set_head("refs/heads/tip").unwrap();
 
-        let status = RepoStatus::new(repo.path()).unwrap();
+        let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
         let message = status.get_branch_message();
         assert_eq!(message, "On branch tip");
     }
@@ -288,7 +294,7 @@ mod tests {
 
         repo.set_head("refs/heads/half").unwrap();
 
-        let status = RepoStatus::new(repo.path()).unwrap();
+        let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
         let message = status.get_branch_message();
         assert_eq!(message, "On branch half");
     }
@@ -303,7 +309,7 @@ mod tests {
         let parent = head.parent(0).unwrap().id();
         repo.set_head_detached(parent).unwrap();
 
-        let status = RepoStatus::new(repo.path()).unwrap();
+        let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
         let message = status.get_branch_message();
         assert_eq!(message, "Head detached at 17fe299");
     }
@@ -317,7 +323,7 @@ mod tests {
         let head = repo.head().unwrap().peel_to_commit().unwrap();
         repo.set_head_detached(head.id()).unwrap();
 
-        let status = RepoStatus::new(repo.path()).unwrap();
+        let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
         let message = status.get_branch_message();
         assert_eq!(message, "Head detached at 82578fa");
     }
@@ -326,7 +332,7 @@ mod tests {
     fn test_get_remote_branch_difference_same_spot() {
         let temp_dir = TempDir::default();
         let repo = test_repo(temp_dir.to_str().unwrap(), &vec![Path::new("what")]);
-        let status = RepoStatus::new(repo.path()).unwrap();
+        let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
         let message = status.get_remote_branch_difference_message();
         assert_eq!(message, "Your branch is up to date with 'origin/tip'.");
     }
@@ -338,7 +344,7 @@ mod tests {
 
         repo.set_head("refs/heads/half").unwrap();
 
-        let status = RepoStatus::new(repo.path()).unwrap();
+        let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
         let message = status.get_remote_branch_difference_message();
         assert_eq!(message, "Your branch is up to date with 'origin/half'.");
     }
@@ -354,7 +360,7 @@ mod tests {
         let mut branch = repo.find_branch("half", BranchType::Local).unwrap();
         branch.set_upstream(Some("origin/tip")).unwrap();
 
-        let status = RepoStatus::new(repo.path()).unwrap();
+        let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
         let message = status.get_remote_branch_difference_message();
         let expected = indoc! {"\
             Your branch is behind 'origin/tip' by 2 commits, and can be fast-forwarded.
@@ -373,7 +379,7 @@ mod tests {
         let mut branch = repo.find_branch("tip", BranchType::Local).unwrap();
         branch.set_upstream(Some("origin/half")).unwrap();
 
-        let status = RepoStatus::new(repo.path()).unwrap();
+        let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
         let message = status.get_remote_branch_difference_message();
         let expected = indoc! {"\
             Your branch is ahead of 'origin/half' by 1 commit.
@@ -392,7 +398,7 @@ mod tests {
         let mut branch = repo.find_branch("tip", BranchType::Local).unwrap();
         branch.set_upstream(Some("origin/half")).unwrap();
 
-        let status = RepoStatus::new(repo.path()).unwrap();
+        let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
         let message = status.get_remote_branch_difference_message();
         let expected = indoc! {"\
             Your branch is ahead of 'origin/half' by 3 commits.
@@ -417,7 +423,7 @@ mod tests {
             commit_file(&repo, Path::new(file));
         }
 
-        let status = RepoStatus::new(repo.path()).unwrap();
+        let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
         let message = status.get_remote_branch_difference_message();
         let expected = indoc! {"\
             Your branch and 'origin/tip' have diverged,
@@ -433,7 +439,7 @@ mod tests {
         let temp_dir = TempDir::default();
         let repo = test_repo(temp_dir.to_str().unwrap(), &files);
 
-        let status = RepoStatus::new(repo.path()).unwrap();
+        let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
         let message = status.get_unstaged_message();
         assert_eq!(message, None);
     }
@@ -447,7 +453,7 @@ mod tests {
 
         write_to_file(&repo, files[2], "what???");
 
-        let status = RepoStatus::new(repo.path()).unwrap();
+        let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
         let message = status.get_unstaged_message();
 
         let expected = indoc! {"\
@@ -455,6 +461,28 @@ mod tests {
               (use \"git add <file>...\" to update what will be committed)
               (use \"git restore <file>...\" to discard changes in working directory)
                     modified: three"};
+        assert_eq!(message, Some(expected.to_string()));
+    }
+
+    #[test]
+    fn test_two_modified_files() {
+        let file_names = vec!["one", "two", "three", "four"];
+        let files = file_names.iter().map(|n| Path::new(n)).collect();
+        let temp_dir = TempDir::default();
+        let repo = test_repo(temp_dir.to_str().unwrap(), &files);
+
+        write_to_file(&repo, files[0], "what???");
+        write_to_file(&repo, files[3], "what???");
+
+        let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
+        let message = status.get_unstaged_message();
+
+        let expected = indoc! {"\
+            Changes not staged for commit:
+              (use \"git add <file>...\" to update what will be committed)
+              (use \"git restore <file>...\" to discard changes in working directory)
+                    modified: four
+                    modified: one"};
         assert_eq!(message, Some(expected.to_string()));
     }
 }
