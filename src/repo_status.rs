@@ -12,6 +12,7 @@ use indoc::formatdoc;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::path::Path;
+use crate::status::Status;
 
 pub struct RepoStatus {
     repo: Repository,
@@ -163,6 +164,7 @@ impl RepoStatus {
             .work_tree_diff
             .entries
             .iter()
+            .filter(|e| e.state != Status::New)
             .map(|e| e.to_string())
             .collect();
         if unstaged_files.is_empty() {
@@ -196,6 +198,26 @@ impl RepoStatus {
         let message = formatdoc! {"\
             Changes to be committed:
               (use \"git restore --staged <file>...\" to unstage)
+                    {files}", files=files};
+        Some(message)
+    }
+
+    fn get_untracked_message(&self) -> Option<String> {
+        let untracked_files: Vec<String> = self
+            .work_tree_diff
+            .entries
+            .iter()
+            .filter(|e| e.state == Status::New)
+            .map(|e| e.name.to_string())
+            .collect();
+        let files = untracked_files
+            .iter()
+            .map(|s| &**s)
+            .collect::<Vec<&str>>()
+            .join("\n        ");
+        let message = formatdoc! {"\
+            Untracked files:
+              (use \"git add <file>...\" to include in what will be committed)
                     {files}", files=files};
         Some(message)
     }
@@ -546,6 +568,10 @@ mod tests {
         fs::remove_file(workdir.join(files[2])).unwrap();
         write_to_file(&repo, files[1], "what???");
 
+        // Throw an untracked file in here as it should not show up in this message,
+        // but it comes from the same source.
+        write_to_file(&repo, Path::new("an_untracked_file"), "stuff");
+
         let status = RepoStatus::new(workdir).unwrap();
         let message = status.get_unstaged_message();
 
@@ -605,6 +631,50 @@ mod tests {
                     modified:   one
                     new file:   some_new_file
                     modified:   two"};
+        assert_eq!(message, Some(expected.to_string()));
+    }
+
+    #[test]
+    fn test_untracked_file() {
+        let file_names = vec!["one", "two", "three", "four"];
+        let files = file_names.iter().map(|n| Path::new(n)).collect();
+        let temp_dir = TempDir::default();
+        let repo = test_repo(temp_dir.to_str().unwrap(), &files);
+
+        write_to_file(&repo, Path::new("some_new_file"), "stuff");
+
+        let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
+        let message = status.get_untracked_message();
+
+        let expected = indoc! {"\
+            Untracked files:
+              (use \"git add <file>...\" to include in what will be committed)
+                    some_new_file"};
+        assert_eq!(message, Some(expected.to_string()));
+    }
+
+    #[test]
+    fn test_untracked_file_and_directory() {
+        let file_names = vec!["one", "two", "three", "four"];
+        let files = file_names.iter().map(|n| Path::new(n)).collect();
+        let temp_dir = TempDir::default();
+        let repo = test_repo(temp_dir.to_str().unwrap(), &files);
+
+        write_to_file(&repo, Path::new("b/path/to/a/file"), "stuff");
+        write_to_file(&repo, Path::new("a_new_file"), "stuff");
+
+        // A modified file to ensure that it doesn't show up in the untracked list, even though it
+        // comes from the same source
+        write_to_file(&repo, files[1], "stuff");
+
+        let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
+        let message = status.get_untracked_message();
+
+        let expected = indoc! {"\
+            Untracked files:
+              (use \"git add <file>...\" to include in what will be committed)
+                    a_new_file
+                    b/"};
         assert_eq!(message, Some(expected.to_string()));
     }
 }
