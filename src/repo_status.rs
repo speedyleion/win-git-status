@@ -52,7 +52,7 @@ impl RepoStatus {
 
         let mut message = vec![branch + &remote_state];
 
-        for block in vec![&staged, &unstaged, &untracked] {
+        for block in &[&staged, &unstaged, &untracked] {
             match block {
                 Some(b) => message.push(b.to_string()),
                 None => (),
@@ -236,12 +236,17 @@ impl RepoStatus {
                     {files}", files=files};
         Some(message)
     }
-    fn get_epilog(staged: &Option<String>, unstaged: &Option<String>, untracked: &Option<String>) -> String {
+    fn get_epilog(
+        staged: &Option<String>,
+        unstaged: &Option<String>,
+        untracked: &Option<String>,
+    ) -> String {
         if staged != &None {
             return "".to_string();
         }
         if unstaged != &None {
-            return "no changes added to commit (use \"git add\" and/or \"git commit -a\")".to_string();
+            return "no changes added to commit (use \"git add\" and/or \"git commit -a\")"
+                .to_string();
         }
         if untracked != &None {
             return "nothing added to commit but untracked files present (use \"git add\" to track)".to_string();
@@ -737,32 +742,50 @@ mod tests {
 
     #[test]
     fn test_unstaged_epilog() {
-        let expected = "no changes added to commit (use \"git add\" and/or \"git commit -a\")".to_string();
-        assert_eq!(RepoStatus::get_epilog(&None, &Some("sure".to_string()), &None), expected);
+        let expected =
+            "no changes added to commit (use \"git add\" and/or \"git commit -a\")".to_string();
+        assert_eq!(
+            RepoStatus::get_epilog(&None, &Some("sure".to_string()), &None),
+            expected
+        );
     }
 
     #[test]
     fn test_staged_epilog() {
         let expected = "".to_string();
-        assert_eq!(RepoStatus::get_epilog(&Some("what".to_string()), &None, &None), expected);
+        assert_eq!(
+            RepoStatus::get_epilog(&Some("what".to_string()), &None, &None),
+            expected
+        );
     }
 
     #[test]
     fn test_untracked_epilog() {
-        let expected = "nothing added to commit but untracked files present (use \"git add\" to track)".to_string();
-        assert_eq!(RepoStatus::get_epilog(&None, &None, &Some("what".to_string())), expected);
+        let expected =
+            "nothing added to commit but untracked files present (use \"git add\" to track)"
+                .to_string();
+        assert_eq!(
+            RepoStatus::get_epilog(&None, &None, &Some("what".to_string())),
+            expected
+        );
     }
 
     #[test]
     fn test_unstaged_overrides_untracked_epilog() {
-        let expected = "no changes added to commit (use \"git add\" and/or \"git commit -a\")".to_string();
-        assert_eq!(RepoStatus::get_epilog(&None, &Some("sure".to_string()), &Some("what".to_string())), expected);
+        let expected =
+            "no changes added to commit (use \"git add\" and/or \"git commit -a\")".to_string();
+        assert_eq!(
+            RepoStatus::get_epilog(&None, &Some("sure".to_string()), &Some("what".to_string())),
+            expected
+        );
     }
 
     #[test]
     fn test_staged_overrides_unstaged_epilog() {
         let expected = "".to_string();
-        assert_eq!(RepoStatus::get_epilog(&Some("what".to_string()), &Some("why".to_string()), &None), expected);
+        assert_eq!(
+            RepoStatus::get_epilog(&Some("what".to_string()), &Some("why".to_string()), &None),
+            expected
+        );
     }
-
 }
