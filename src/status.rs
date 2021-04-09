@@ -24,7 +24,7 @@ impl fmt::Display for Status {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Status::Current => fmt.write_str(""),
-            Status::New => fmt.write_str("added:    "),
+            Status::New => fmt.write_str("new file:   "),
             Status::Modified => fmt.write_str("modified:   "),
             Status::Deleted => fmt.write_str("deleted:    "),
         }

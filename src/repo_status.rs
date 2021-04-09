@@ -176,6 +176,24 @@ impl RepoStatus {
         files=files};
         Some(message)
     }
+    fn get_staged_message(&self) -> Option<String> {
+        let staged_files: Vec<String> = self
+            .index_diff
+            .entries
+            .iter()
+            .map(|e| e.to_string())
+            .collect();
+        let files = staged_files
+            .iter()
+            .map(|s| &**s)
+            .collect::<Vec<&str>>()
+            .join("\n        ");
+        let message = formatdoc! {"\
+            Changes to be committed:
+              (use \"git restore --staged <file>...\" to unstage)
+                    {files}", files=files};
+        Some(message)
+    }
 }
 
 #[cfg(test)]
@@ -239,11 +257,16 @@ mod tests {
         fs::write(&full_path, contents).unwrap();
     }
 
-    fn commit_file(repo: &Repository, file: &Path) {
-        write_to_file(repo, file, file.to_str().unwrap());
+    fn stage_file(repo: &Repository, file: &Path) {
         let mut index = repo.index().unwrap();
         index.add_path(&file).unwrap();
         index.write().unwrap();
+    }
+
+    fn commit_file(repo: &Repository, file: &Path) {
+        write_to_file(repo, file, file.to_str().unwrap());
+        stage_file(repo, file);
+        let mut index = repo.index().unwrap();
         let tree_oid = index.write_tree().unwrap();
         let tree = repo.find_tree(tree_oid).unwrap();
         let signature = Signature::new("Tucan", "me@me.com", &Time::new(20, 0)).unwrap();
@@ -527,6 +550,55 @@ mod tests {
               (use \"git restore <file>...\" to discard changes in working directory)
                     modified:   one
                     deleted:    three
+                    modified:   two"};
+        assert_eq!(message, Some(expected.to_string()));
+    }
+
+    #[test]
+    fn test_file_added_to_index() {
+        let file_names = vec!["one", "two", "three", "four"];
+        let files = file_names.iter().map(|n| Path::new(n)).collect();
+        let temp_dir = TempDir::default();
+        let repo = test_repo(temp_dir.to_str().unwrap(), &files);
+
+        let new_file = Path::new("a_new_file");
+        write_to_file(&repo, new_file, "stuff");
+        stage_file(&repo, new_file);
+
+        let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
+        let message = status.get_staged_message();
+
+        let expected = indoc! {"\
+            Changes to be committed:
+              (use \"git restore --staged <file>...\" to unstage)
+                    new file:   a_new_file"};
+        assert_eq!(message, Some(expected.to_string()));
+    }
+
+    #[test]
+    fn test_file_added_to_index_and_files_modified() {
+        let file_names = vec!["one", "two", "three", "four"];
+        let files = file_names.iter().map(|n| Path::new(n)).collect();
+        let temp_dir = TempDir::default();
+        let repo = test_repo(temp_dir.to_str().unwrap(), &files);
+
+        let new_file = Path::new("some_new_file");
+        write_to_file(&repo, new_file, "stuff");
+        stage_file(&repo, new_file);
+
+        for file in vec![files[0], files[1]] {
+            write_to_file(&repo, file, "what???");
+            stage_file(&repo, file);
+        }
+
+        let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
+        let message = status.get_staged_message();
+
+        let expected = indoc! {"\
+            Changes to be committed:
+              (use \"git restore --staged <file>...\" to unstage)
+                    modified:   one
+                    new file:   some_new_file
                     modified:   two"};
         assert_eq!(message, Some(expected.to_string()));
     }
