@@ -480,7 +480,7 @@ mod tests {
             Changes not staged for commit:
               (use \"git add <file>...\" to update what will be committed)
               (use \"git restore <file>...\" to discard changes in working directory)
-                    modified: three"};
+                    modified:   three"};
         assert_eq!(message, Some(expected.to_string()));
     }
 
@@ -501,8 +501,33 @@ mod tests {
             Changes not staged for commit:
               (use \"git add <file>...\" to update what will be committed)
               (use \"git restore <file>...\" to discard changes in working directory)
-                    modified: four
-                    modified: one/nested/a/bit.txt"};
+                    modified:   four
+                    modified:   one/nested/a/bit.txt"};
+        assert_eq!(message, Some(expected.to_string()));
+    }
+
+    #[test]
+    fn test_two_modified_one_deleted() {
+        let file_names = vec!["one", "two", "three", "four"];
+        let files = file_names.iter().map(|n| Path::new(n)).collect();
+        let temp_dir = TempDir::default();
+        let repo = test_repo(temp_dir.to_str().unwrap(), &files);
+
+        write_to_file(&repo, files[0], "what???");
+        let workdir = repo.workdir().unwrap();
+        fs::remove_file(workdir.join(files[2])).unwrap();
+        write_to_file(&repo, files[1], "what???");
+
+        let status = RepoStatus::new(workdir).unwrap();
+        let message = status.get_unstaged_message();
+
+        let expected = indoc! {"\
+            Changes not staged for commit:
+              (use \"git add <file>...\" to update what will be committed)
+              (use \"git restore <file>...\" to discard changes in working directory)
+                    modified:   one
+                    deleted:    three
+                    modified:   two"};
         assert_eq!(message, Some(expected.to_string()));
     }
 }
