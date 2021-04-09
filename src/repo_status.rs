@@ -45,15 +45,20 @@ impl RepoStatus {
     pub fn message(&self) -> Result<String, StatusError> {
         let branch = self.get_branch_message();
         let remote_state = self.get_remote_branch_difference_message();
-        Ok(formatdoc!{"\
+        let unstaged = match self.get_unstaged_message() {
+            None => "".to_string(),
+            Some(message) => message,
+        };
+        Ok(formatdoc! {"\
            {branch}
-           {remote_state}", branch=branch, remote_state=remote_state})
+           {remote_state}
+           {unstaged}", branch=branch, remote_state=remote_state, unstaged=unstaged})
     }
 
     pub fn get_branch_message(&self) -> String {
-        let name = match self.branch_name(){
+        let name = match self.branch_name() {
             Some(name) => name,
-            None => return self.get_detached_message()
+            None => return self.get_detached_message(),
         };
         let short_name = name.strip_prefix("refs/heads/").unwrap();
         let message = "On branch ".to_string();
@@ -121,7 +126,7 @@ impl RepoStatus {
                           (use \"git push\" to publish your local commits)",
                     branch=short_name, commits=before, plural=plural
                     }
-                },
+                }
                 _ => {
                     formatdoc! {"\
                         Your branch and '{branch}' have diverged,
@@ -130,29 +135,45 @@ impl RepoStatus {
                     branch=short_name, before=before, after=after
                     }
                 }
-            }
+            },
         }
     }
     fn get_detached_message(&self) -> String {
-        let commit_sha = self.repo.head().unwrap().peel_to_commit().unwrap().id().to_string();
+        let commit_sha = self
+            .repo
+            .head()
+            .unwrap()
+            .peel_to_commit()
+            .unwrap()
+            .id()
+            .to_string();
         let short_sha = &commit_sha[..7];
-        formatdoc!{
+        formatdoc! {
             "Head detached at {sha}",
             sha=short_sha
         }
     }
     fn get_unstaged_message(&self) -> Option<String> {
-        let unstaged_files: Vec<String> = self.work_tree_diff.entries.iter().map(|e| e.to_string()).collect();
-        if unstaged_files.len() == 0 {
+        let unstaged_files: Vec<String> = self
+            .work_tree_diff
+            .entries
+            .iter()
+            .map(|e| e.to_string())
+            .collect();
+        if unstaged_files.is_empty() {
             return None;
         }
-        let files = unstaged_files.iter().map(|s| &**s).collect::<Vec<&str>>().join("\n        ");
-        let message = formatdoc!{"\
+        let files = unstaged_files
+            .iter()
+            .map(|s| &**s)
+            .collect::<Vec<&str>>()
+            .join("\n        ");
+        let message = formatdoc! {"\
             Changes not staged for commit:
               (use \"git add <file>...\" to update what will be committed)
               (use \"git restore <file>...\" to discard changes in working directory)
                     {files}",
-            files=files};
+        files=files};
         Some(message)
     }
 }
@@ -219,7 +240,7 @@ mod tests {
     }
 
     fn commit_file(repo: &Repository, file: &Path) {
-        write_to_file(repo, file,file.to_str().unwrap());
+        write_to_file(repo, file, file.to_str().unwrap());
         let mut index = repo.index().unwrap();
         index.add_path(&file).unwrap();
         index.write().unwrap();
@@ -416,7 +437,6 @@ mod tests {
         repo.set_head("refs/heads/half").unwrap();
         let mut branch = repo.find_branch("half", BranchType::Local).unwrap();
         branch.set_upstream(Some("origin/tip")).unwrap();
-
 
         let new_files = vec!["what", "why", "where"];
         for file in new_files {
