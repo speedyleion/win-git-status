@@ -6,13 +6,13 @@
  */
 
 use crate::error::StatusError;
+use crate::status::Status;
 use crate::{Index, TreeDiff, WorkTree};
 use git2::Repository;
 use indoc::formatdoc;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::path::Path;
-use crate::status::Status;
 
 pub struct RepoStatus {
     repo: Repository,
@@ -54,11 +54,16 @@ impl RepoStatus {
             None => "".to_string(),
             Some(message) => message,
         };
+        let untracked = match self.get_untracked_message() {
+            None => "".to_string(),
+            Some(message) => message,
+        };
         Ok(formatdoc! {"\
            {branch}
            {remote_state}
            {staged}
-           {unstaged}", branch=branch, remote_state=remote_state, staged=staged, unstaged=unstaged})
+           {unstaged}
+           {untracked}", branch=branch, remote_state=remote_state, staged=staged, unstaged=unstaged, untracked=untracked})
     }
 
     pub fn get_branch_message(&self) -> String {
