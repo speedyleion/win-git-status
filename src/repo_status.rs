@@ -45,6 +45,10 @@ impl RepoStatus {
     pub fn message(&self) -> Result<String, StatusError> {
         let branch = self.get_branch_message();
         let remote_state = self.get_remote_branch_difference_message();
+        let staged = match self.get_staged_message() {
+            None => "".to_string(),
+            Some(message) => message,
+        };
         let unstaged = match self.get_unstaged_message() {
             None => "".to_string(),
             Some(message) => message,
@@ -52,7 +56,8 @@ impl RepoStatus {
         Ok(formatdoc! {"\
            {branch}
            {remote_state}
-           {unstaged}", branch=branch, remote_state=remote_state, unstaged=unstaged})
+           {staged}
+           {unstaged}", branch=branch, remote_state=remote_state, staged=staged, unstaged=unstaged})
     }
 
     pub fn get_branch_message(&self) -> String {
