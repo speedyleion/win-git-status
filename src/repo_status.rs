@@ -486,7 +486,7 @@ mod tests {
 
     #[test]
     fn test_two_modified_files() {
-        let file_names = vec!["one", "two", "three", "four"];
+        let file_names = vec!["one/nested/a/bit.txt", "two", "three", "four"];
         let files = file_names.iter().map(|n| Path::new(n)).collect();
         let temp_dir = TempDir::default();
         let repo = test_repo(temp_dir.to_str().unwrap(), &files);
@@ -502,7 +502,7 @@ mod tests {
               (use \"git add <file>...\" to update what will be committed)
               (use \"git restore <file>...\" to discard changes in working directory)
                     modified: four
-                    modified: one"};
+                    modified: one/nested/a/bit.txt"};
         assert_eq!(message, Some(expected.to_string()));
     }
 }
