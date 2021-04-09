@@ -49,18 +49,16 @@ impl RepoStatus {
         let staged = self.get_staged_message();
         let unstaged = self.get_unstaged_message();
         let untracked = self.get_untracked_message();
+        let epilog = RepoStatus::get_epilog(&staged, &unstaged, &untracked);
 
         let mut message = vec![branch + &remote_state];
 
-        for block in &[&staged, &unstaged, &untracked] {
+        for block in &[&staged, &unstaged, &untracked, &epilog] {
             match block {
                 Some(b) => message.push(b.to_string()),
                 None => (),
             };
         }
-
-        let epilog = RepoStatus::get_epilog(&staged, &unstaged, &untracked);
-        message.push(epilog);
 
         Ok(message.join("\n\n"))
     }
@@ -240,18 +238,18 @@ impl RepoStatus {
         staged: &Option<String>,
         unstaged: &Option<String>,
         untracked: &Option<String>,
-    ) -> String {
+    ) -> Option<String> {
         if staged != &None {
-            return "".to_string();
+            return None
         }
         if unstaged != &None {
-            return "no changes added to commit (use \"git add\" and/or \"git commit -a\")"
-                .to_string();
+            return Some("no changes added to commit (use \"git add\" and/or \"git commit -a\")"
+                .to_string());
         }
         if untracked != &None {
-            return "nothing added to commit but untracked files present (use \"git add\" to track)".to_string();
+            return Some("nothing added to commit but untracked files present (use \"git add\" to track)".to_string());
         }
-        "nothing to commit, working tree clean".to_string()
+        Some("nothing to commit, working tree clean".to_string())
     }
 }
 
@@ -737,7 +735,7 @@ mod tests {
     #[test]
     fn test_no_change_epilog() {
         let expected = "nothing to commit, working tree clean".to_string();
-        assert_eq!(RepoStatus::get_epilog(&None, &None, &None), expected);
+        assert_eq!(RepoStatus::get_epilog(&None, &None, &None), Some(expected));
     }
 
     #[test]
@@ -746,16 +744,15 @@ mod tests {
             "no changes added to commit (use \"git add\" and/or \"git commit -a\")".to_string();
         assert_eq!(
             RepoStatus::get_epilog(&None, &Some("sure".to_string()), &None),
-            expected
+            Some(expected)
         );
     }
 
     #[test]
     fn test_staged_epilog() {
-        let expected = "".to_string();
         assert_eq!(
             RepoStatus::get_epilog(&Some("what".to_string()), &None, &None),
-            expected
+            None
         );
     }
 
@@ -766,7 +763,7 @@ mod tests {
                 .to_string();
         assert_eq!(
             RepoStatus::get_epilog(&None, &None, &Some("what".to_string())),
-            expected
+            Some(expected)
         );
     }
 
@@ -776,16 +773,15 @@ mod tests {
             "no changes added to commit (use \"git add\" and/or \"git commit -a\")".to_string();
         assert_eq!(
             RepoStatus::get_epilog(&None, &Some("sure".to_string()), &Some("what".to_string())),
-            expected
+            Some(expected)
         );
     }
 
     #[test]
     fn test_staged_overrides_unstaged_epilog() {
-        let expected = "".to_string();
         assert_eq!(
             RepoStatus::get_epilog(&Some("what".to_string()), &Some("why".to_string()), &None),
-            expected
+            None
         );
     }
 }
