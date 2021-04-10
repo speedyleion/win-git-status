@@ -44,7 +44,7 @@ impl From<nom::Err<nom::error::Error<&[u8]>>> for StatusError {
 ///     etc.
 #[derive(Debug, Default)]
 pub struct Index {
-    path: String,
+    pub path: String,
     oid: [u8; 20],
     header: Header,
     pub entries: HashMap<String, Vec<DirEntry>>,

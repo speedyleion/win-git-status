@@ -17,6 +17,7 @@ use crate::error::StatusError;
 use crate::status::{Status, StatusEntry};
 use crate::{Index, RepoStatus};
 use std::fs;
+use ignore::gitignore::GitignoreBuilder;
 
 #[derive(Debug, Default, Clone)]
 struct IndexState {
@@ -225,15 +226,33 @@ fn process_new_item(
         name.push('/');
     }
 
-    let ignored = is_ignored(&index, &name);
+    if is_ignored(dir_entry, &name) {
+        return None;
+    }
+
     Some(StatusEntry {
         name,
         state: Status::New,
     })
 }
 
-fn is_ignored(repo: &Arc<Index>, filename: &String) -> bool {
-    false
+fn is_ignored(
+    entry: &mut jwalk::DirEntry<(IndexState, bool)>,
+    name: &str) -> bool {
+
+    let path = entry.path();
+    let mut builder = GitignoreBuilder::new(&path);
+    let directories: Vec<&Path> = path.ancestors().take(entry.depth + 1).collect();
+    for dir in directories[1..].iter().rev() {
+        let ignore_file = dir.join(".gitignore");
+        if ignore_file.exists(){
+            builder.add(ignore_file);
+        }
+    }
+
+    let ignore = builder.build().unwrap();
+    let matched = ignore.matched_path_or_any_parents(name, entry.file_type.is_dir());
+    matched.is_ignore()
 }
 
 fn lookup_git_link(git_link: &Path) -> Result<String, Box<dyn std::error::Error + 'static>> {
@@ -324,7 +343,7 @@ mod tests {
     fn test_diff_against_index_nothing_modified() {
         let temp_dir = TempDir::default();
         let index = test_repo(&temp_dir, &vec![Path::new("simple_file.txt")]);
-        let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
+        let value = WorkTree::diff_against_index(&temp_dir, index).unwrap();
         assert_eq!(value.entries, vec![]);
     }
 
@@ -335,7 +354,7 @@ mod tests {
         let mut index = test_repo(&temp_dir, &vec![Path::new(entry_name)]);
         let dir_entries = index.entries.get_mut("").unwrap();
         dir_entries[0].stat.size += 1;
-        let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
+        let value = WorkTree::diff_against_index(&temp_dir, index).unwrap();
         let entries = vec![StatusEntry {
             name: entry_name.to_string(),
             state: Status::Modified,
@@ -350,7 +369,7 @@ mod tests {
         let mut index = test_repo(&temp_dir, &vec![Path::new(entry_name)]);
         let dir_entries = index.entries.get_mut("").unwrap();
         dir_entries[0].stat.mtime += 1;
-        let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
+        let value = WorkTree::diff_against_index(&temp_dir, index).unwrap();
         let entries = vec![StatusEntry {
             name: entry_name.to_string(),
             state: Status::Modified,
@@ -362,7 +381,7 @@ mod tests {
     fn test_diff_against_index_deeply_nested() {
         let temp_dir = TempDir::default();
         let index = test_repo(&temp_dir, &vec![Path::new("dir_1/dir_2/dir_3/file.txt")]);
-        let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
+        let value = WorkTree::diff_against_index(&temp_dir, index).unwrap();
         assert_eq!(value.entries, vec![]);
     }
 
@@ -372,7 +391,7 @@ mod tests {
         let mut index = test_repo(&temp_dir, &vec![Path::new("dir_1/dir_2/dir_3/file.txt")]);
         let dir_entries = index.entries.get_mut("dir_1/dir_2/dir_3").unwrap();
         dir_entries[0].stat.size += 1;
-        let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
+        let value = WorkTree::diff_against_index(&temp_dir, index).unwrap();
         let entries = vec![StatusEntry {
             name: "dir_1/dir_2/dir_3/file.txt".to_string(),
             state: Status::Modified,
@@ -389,7 +408,7 @@ mod tests {
         fs::create_dir_all(new_file.parent().unwrap()).unwrap();
         fs::write(&new_file, "stuff").unwrap();
 
-        let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
+        let value = WorkTree::diff_against_index(&temp_dir, index).unwrap();
         let entries = vec![StatusEntry {
             name: new_file_name.to_string(),
             state: Status::New,
@@ -410,7 +429,7 @@ mod tests {
             fs::write(&new_file, "stuff").unwrap();
         }
 
-        let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
+        let value = WorkTree::diff_against_index(&temp_dir, index).unwrap();
         let entries: Vec<StatusEntry> = new_file_names
             .iter()
             .map(|&n| StatusEntry {
@@ -429,7 +448,7 @@ mod tests {
         let index = test_repo(&temp_dir, &files);
         fs::remove_file(temp_dir.join("file_2.txt")).unwrap();
 
-        let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
+        let value = WorkTree::diff_against_index(&temp_dir, index).unwrap();
         let entries = vec![StatusEntry {
             name: "file_2.txt".to_string(),
             state: Status::Deleted,
@@ -445,7 +464,7 @@ mod tests {
         let index = test_repo(&temp_dir, &files);
         fs::remove_file(temp_dir.join("foo.txt")).unwrap();
 
-        let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
+        let value = WorkTree::diff_against_index(&temp_dir, index).unwrap();
         let entries = vec![StatusEntry {
             name: "foo.txt".to_string(),
             state: Status::Deleted,
@@ -464,7 +483,7 @@ mod tests {
             fs::write(&file, "ignore*").unwrap();
         }
 
-        let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
+        let value = WorkTree::diff_against_index(&temp_dir, index).unwrap();
 
         // Only the gitignore should show up as new
         let entries = vec![StatusEntry {
