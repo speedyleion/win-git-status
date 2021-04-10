@@ -249,7 +249,8 @@ mod tests {
                             size: 70,
                         },
                         sha: *sha,
-                        name: "name".to_string()
+                        object_type: ObjectType::Regular,
+                        name: "name".to_string(),
                     }
                 )
             ))
@@ -274,6 +275,7 @@ mod tests {
                 (
                     "a/different/name/to/a/file".to_string(),
                     DirEntry {
+                        object_type: ObjectType::Regular,
                         stat: FileStat { mtime: 0, size: 0 },
                         sha: *sha,
                         name: "with.ext".to_string()
@@ -304,6 +306,7 @@ mod tests {
                 (
                     "a".to_string(),
                     DirEntry {
+                        object_type: ObjectType::Regular,
                         stat: FileStat { mtime: 0, size: 0 },
                         sha: *sha,
                         name: "file".to_string()
@@ -334,6 +337,7 @@ mod tests {
                 (
                     "".to_string(),
                     DirEntry {
+                        object_type: ObjectType::Regular,
                         stat: FileStat { mtime: 0, size: 0 },
                         sha: *sha,
                         name: "niners999".to_string()
@@ -364,6 +368,7 @@ mod tests {
                 (
                     "".to_string(),
                     DirEntry {
+                        object_type: ObjectType::Regular,
                         stat: FileStat { mtime: 0, size: 0 },
                         sha: *sha,
                         name: "22".to_string()
