@@ -581,14 +581,14 @@ mod tests {
 
         let value = WorkTree::diff_against_index(&temp_dir, index).unwrap();
 
-        // The file should now also be listed since it was unignored in the sub directory
+        // The file's directory should now also be listed since it was unignored in the sub directory
         let entries = vec![
             StatusEntry {
                 name: ".gitignore".to_string(),
                 state: Status::New,
             },
             StatusEntry {
-                name: "foo/ignore.txt".to_string(),
+                name: "foo/".to_string(),
                 state: Status::New,
         }];
         assert_eq!(value.entries, entries);
