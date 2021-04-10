@@ -8,7 +8,7 @@ use git2::{Repository, Signature, SubmoduleUpdateOptions, Time};
 use std::fs;
 use std::path::Path;
 
-pub fn test_repo(path: &str, files: Vec<&Path>) -> () {
+pub fn test_repo(path: &Path, files: Vec<&Path>) -> Repository {
     let repo = Repository::init(path).unwrap();
     let mut index = repo.index().unwrap();
     let root = repo.path().parent().unwrap();
@@ -22,21 +22,24 @@ pub fn test_repo(path: &str, files: Vec<&Path>) -> () {
     }
     index.write().unwrap();
     let tree_oid = index.write_tree().unwrap();
-    let tree = repo.find_tree(tree_oid).unwrap();
-    let signature = Signature::new("Tucan", "me@me.com", &Time::new(20, 0)).unwrap();
-    repo.commit(
-        Option::from("HEAD"),
-        &signature,
-        &signature,
-        "A message",
-        &tree,
-        // No parents yet this is the first commit
-        &[],
-    )
-    .unwrap();
+    {
+        let tree = repo.find_tree(tree_oid).unwrap();
+        let signature = Signature::new("Tucan", "me@me.com", &Time::new(20, 0)).unwrap();
+        repo.commit(
+            Option::from("HEAD"),
+            &signature,
+            &signature,
+            "A message",
+            &tree,
+            // No parents yet this is the first commit
+            &[],
+        )
+            .unwrap();
+    }
+    repo
 }
 
-pub fn add_submodule(path: &str, submodule_url: &str, submodule_path: &str) -> () {
+pub fn add_submodule(path: &Path, submodule_url: &str, submodule_path: &str) -> () {
     let repo = Repository::init(path).unwrap();
     let mut submodule = repo
         .submodule(submodule_url, Path::new(submodule_path), true)
