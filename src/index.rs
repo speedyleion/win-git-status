@@ -22,6 +22,7 @@ use crate::direntry::{DirEntry, FileStat};
 
 use crate::error::StatusError;
 use std::collections::HashMap;
+use git2::Repository;
 
 impl From<nom::Err<nom::error::Error<&[u8]>>> for StatusError {
     fn from(err: nom::Err<nom::error::Error<&[u8]>>) -> StatusError {

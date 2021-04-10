@@ -15,7 +15,7 @@ use crate::direntry::DirEntry;
 use crate::dirstat::DirectoryStat;
 use crate::error::StatusError;
 use crate::status::{Status, StatusEntry};
-use crate::Index;
+use crate::{Index, RepoStatus};
 use std::fs;
 
 #[derive(Debug, Default, Clone)]
@@ -225,10 +225,15 @@ fn process_new_item(
         name.push('/');
     }
 
+    let ignored = is_ignored(&index, &name);
     Some(StatusEntry {
         name,
         state: Status::New,
     })
+}
+
+fn is_ignored(repo: &Arc<Index>, filename: &String) -> bool {
+    false
 }
 
 fn lookup_git_link(git_link: &Path) -> Result<String, Box<dyn std::error::Error + 'static>> {
@@ -284,53 +289,41 @@ mod tests {
     use std::fs;
     use std::time::SystemTime;
     use temp_testdir::TempDir;
+    use git2::{Repository, Signature, Time};
 
-    // Test helper function to build up a temporary directory of `files`.  All files will have the
-    // same contents `what\r\nis\r\nit`.  The `Index` will be populated with the values as the files
-    // currently are on disk.  Callers can modify the returned `Index` to create differences or
-    // create and delete files from the returned `TempDir`.
-    fn temp_tree(files: Vec<&Path>) -> (Index, TempDir) {
-        let temp_dir = TempDir::default();
-        let mut index = Index::default();
-
-        let file_contents = "what\r\nis\r\nit";
+    // Create a test repo to be able to compare the index to the working tree.
+    pub fn test_repo(path: &Path, files: &Vec<&Path>) -> Index {
+        let repo = Repository::init(path).unwrap();
+        let mut index = repo.index().unwrap();
+        let root = repo.path().parent().unwrap();
         for file in files {
-            let full_path = temp_dir.join(file);
+            let full_path = root.join(file);
 
             // Done this way to support nested files
             fs::create_dir_all(full_path.parent().unwrap()).unwrap();
-            fs::write(&full_path, file_contents).unwrap();
-            let metadata = fs::metadata(&full_path).unwrap();
-
-            let relative_parent = file.parent().unwrap().to_str().unwrap().to_string();
-            for ancestor in Path::new(&relative_parent).ancestors() {
-                index
-                    .entries
-                    .entry(ancestor.to_str().unwrap().to_string())
-                    .or_insert_with(Vec::<DirEntry>::new);
-            }
-
-            let dir_entries = index.entries.get_mut(&relative_parent).unwrap();
-            dir_entries.push(DirEntry {
-                stat: FileStat {
-                    mtime: metadata
-                        .modified()
-                        .unwrap()
-                        .duration_since(SystemTime::UNIX_EPOCH)
-                        .unwrap()
-                        .as_secs() as u32,
-                    size: metadata.len() as u32,
-                },
-                sha: [0; 20],
-                name: file.file_name().unwrap().to_str().unwrap().to_string(),
-            });
+            fs::write(&full_path, file.to_str().unwrap()).unwrap();
+            index.add_path(&file).unwrap();
         }
-        (index, temp_dir)
+        index.write().unwrap();
+        let tree_oid = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree_oid).unwrap();
+        let signature = Signature::new("Tucan", "me@me.com", &Time::new(20, 0)).unwrap();
+        repo.commit(
+            Option::from("HEAD"),
+            &signature,
+            &signature,
+            "A message",
+            &tree,
+            // No parents yet this is the first commit
+            &[],
+        ).unwrap();
+        Index::new(&path.join(".git/index")).unwrap()
     }
 
     #[test]
     fn test_diff_against_index_nothing_modified() {
-        let (index, temp_dir) = temp_tree(vec![Path::new("simple_file.txt")]);
+        let temp_dir = TempDir::default();
+        let index = test_repo(&temp_dir, &vec![Path::new("simple_file.txt")]);
         let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
         assert_eq!(value.entries, vec![]);
     }
@@ -338,7 +331,8 @@ mod tests {
     #[test]
     fn test_diff_against_index_a_file_modified_size() {
         let entry_name = "simple_file.txt";
-        let (mut index, temp_dir) = temp_tree(vec![Path::new(entry_name)]);
+        let temp_dir = TempDir::default();
+        let mut index = test_repo(&temp_dir, &vec![Path::new(entry_name)]);
         let dir_entries = index.entries.get_mut("").unwrap();
         dir_entries[0].stat.size += 1;
         let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
@@ -352,7 +346,8 @@ mod tests {
     #[test]
     fn test_diff_against_index_a_file_modified_mstat() {
         let entry_name = "simple_file.txt";
-        let (mut index, temp_dir) = temp_tree(vec![Path::new(entry_name)]);
+        let temp_dir = TempDir::default();
+        let mut index = test_repo(&temp_dir, &vec![Path::new(entry_name)]);
         let dir_entries = index.entries.get_mut("").unwrap();
         dir_entries[0].stat.mtime += 1;
         let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
@@ -365,14 +360,16 @@ mod tests {
 
     #[test]
     fn test_diff_against_index_deeply_nested() {
-        let (index, temp_dir) = temp_tree(vec![Path::new("dir_1/dir_2/dir_3/file.txt")]);
+        let temp_dir = TempDir::default();
+        let index = test_repo(&temp_dir, &vec![Path::new("dir_1/dir_2/dir_3/file.txt")]);
         let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
         assert_eq!(value.entries, vec![]);
     }
 
     #[test]
     fn test_diff_against_modified_index_deeply_nested() {
-        let (mut index, temp_dir) = temp_tree(vec![Path::new("dir_1/dir_2/dir_3/file.txt")]);
+        let temp_dir = TempDir::default();
+        let mut index = test_repo(&temp_dir, &vec![Path::new("dir_1/dir_2/dir_3/file.txt")]);
         let dir_entries = index.entries.get_mut("dir_1/dir_2/dir_3").unwrap();
         dir_entries[0].stat.size += 1;
         let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
@@ -385,7 +382,8 @@ mod tests {
 
     #[test]
     fn test_new_file_in_worktree() {
-        let (index, temp_dir) = temp_tree(vec![Path::new("simple_file.txt")]);
+        let temp_dir = TempDir::default();
+        let index = test_repo(&temp_dir, &vec![Path::new("simple_file.txt")]);
         let new_file_name = "new_file.txt";
         let new_file = temp_dir.join(new_file_name);
         fs::create_dir_all(new_file.parent().unwrap()).unwrap();
@@ -401,7 +399,8 @@ mod tests {
 
     #[test]
     fn test_multiple_new_files_in_worktree() {
-        let (index, temp_dir) = temp_tree(vec![Path::new("simple_file.txt")]);
+        let temp_dir = TempDir::default();
+        let index = test_repo(&temp_dir, &vec![Path::new("simple_file.txt")]);
 
         // Putting them in order for the simpler assert
         let new_file_names = vec!["a_file.txt", "z_file.txt"];
@@ -426,7 +425,8 @@ mod tests {
     fn test_deleted_file_in_worktree() {
         let names = vec!["file_1.txt", "file_2.txt", "foo.txt"];
         let files = names.iter().map(|n| Path::new(n)).collect();
-        let (index, temp_dir) = temp_tree(files);
+        let temp_dir = TempDir::default();
+        let index = test_repo(&temp_dir, &files);
         fs::remove_file(temp_dir.join("file_2.txt")).unwrap();
 
         let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
@@ -441,13 +441,35 @@ mod tests {
     fn test_deleted_file_at_end_of_worktree() {
         let names = vec!["file_1.txt", "file_2.txt", "foo.txt"];
         let files = names.iter().map(|n| Path::new(n)).collect();
-        let (index, temp_dir) = temp_tree(files);
+        let temp_dir = TempDir::default();
+        let index = test_repo(&temp_dir, &files);
         fs::remove_file(temp_dir.join("foo.txt")).unwrap();
 
         let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
         let entries = vec![StatusEntry {
             name: "foo.txt".to_string(),
             state: Status::Deleted,
+        }];
+        assert_eq!(value.entries, entries);
+    }
+
+    #[test]
+    fn test_ignored_file_in_worktree() {
+        let temp_dir = TempDir::default();
+        let index = test_repo(&temp_dir, &vec![Path::new("simple_file.txt")]);
+
+        for name in vec!["ignored.txt", ".gitignore"]{
+            let file = temp_dir.join(name);
+            fs::create_dir_all(file.parent().unwrap()).unwrap();
+            fs::write(&file, "ignore*").unwrap();
+        }
+
+        let value = WorkTree::diff_against_index(&*temp_dir, index).unwrap();
+
+        // Only the gitignore should show up as new
+        let entries = vec![StatusEntry {
+            name: ".gitignore".to_string(),
+            state: Status::New,
         }];
         assert_eq!(value.entries, entries);
     }
