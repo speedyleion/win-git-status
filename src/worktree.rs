@@ -11,7 +11,7 @@ use pathdiff::diff_paths;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use crate::direntry::DirEntry;
+use crate::direntry::{DirEntry, ObjectType};
 use crate::dirstat::DirectoryStat;
 use crate::error::StatusError;
 use crate::status::{Status, StatusEntry};
@@ -165,10 +165,9 @@ fn get_file_deltas(
                     worktree_file = worktree_iter.next();
                 }
                 Ordering::Greater => {
-                    file_changes.lock().unwrap().push(StatusEntry {
-                        name: i_file.name.to_string(),
-                        state: Status::Deleted,
-                    });
+                    if let Some(entry) = process_deleted_item(i_file, index) {
+                        file_changes.lock().unwrap().push(entry);
+                    }
                     index_file = index_iter.next();
                 }
             },
@@ -181,12 +180,24 @@ fn get_file_deltas(
         }
     }
     while let Some(i_file) = index_file {
-        file_changes.lock().unwrap().push(StatusEntry {
-            name: i_file.name.to_string(),
-            state: Status::Deleted,
-        });
+        if let Some(entry) = process_deleted_item(i_file, index) {
+            file_changes.lock().unwrap().push(entry);
+        }
         index_file = index_iter.next();
     }
+}
+
+fn process_deleted_item(index_entry: &DirEntry, index: &Arc<Index>
+    ) -> Option<StatusEntry> {
+    // When a submodule is missing it is *not* reported as deleted, it's assumed the user just
+    // hasn't updated the submodules
+    if index_entry.object_type == ObjectType::GitLink {
+        return None;
+    }
+    Some(StatusEntry {
+        name: index_entry.name.to_string(),
+        state: Status::New,
+    })
 }
 
 fn is_modified(

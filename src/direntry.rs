@@ -5,6 +5,19 @@
  *          https://www.boost.org/LICENSE_1_0.txt)
  */
 
+#[derive(PartialEq, Eq, Debug, Clone)]
+pub enum ObjectType {
+    Regular,
+    SymLink,
+    // These are submodules
+    GitLink,
+}
+impl Default for ObjectType {
+    fn default() -> Self {
+        ObjectType::Regular
+    }
+}
+
 #[derive(PartialEq, Eq, Debug, Default, Clone)]
 pub struct FileStat {
     pub mtime: u32,
@@ -14,6 +27,7 @@ pub struct FileStat {
 /// Represents an git entry in the index or working tree i.e. a file or blob
 #[derive(PartialEq, Eq, Debug, Default)]
 pub struct DirEntry {
+    pub object_type: ObjectType,
     pub stat: FileStat,
 
     // The docs call this "object name"

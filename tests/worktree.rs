@@ -183,6 +183,35 @@ fn submodule_with_new_commits() {
 
     assert_eq!(value.entries, entries);
 }
+
+#[test]
+fn worktree_diff_with_submodule_removed() {
+    let temp = TempDir::default().permanent();
+    let super_repo = temp.join("super_repo");
+    let names = vec!["a_file.txt", "another.md", "what.log"];
+    let files = names.iter().map(|n| Path::new(n)).collect();
+    common::test_repo(&super_repo, files);
+
+    let sub_repo = temp.join("sub_repo");
+    let sub_names = vec!["a_sub_file.md", "sure.c"];
+    let sub_files = sub_names.iter().map(|n| Path::new(n)).collect();
+    common::test_repo(&sub_repo, sub_files);
+
+    common::add_submodule(
+        &super_repo,
+        sub_repo.to_str().unwrap(),
+        "sub_repo_dir",
+    );
+
+    fs::remove_dir_all(super_repo.join("sub_repo_dir")).unwrap();
+
+    let index_file = super_repo.join(".git/index");
+    let index = Index::new(&index_file).unwrap();
+
+    let value = WorkTree::diff_against_index(&super_repo, index).unwrap();
+    assert_eq!(value.entries, vec![]);
+}
+
 //  Behaviour needed for submodules
 //
 //  modified:   <red>sub_repo_dir</red> (untracked content)

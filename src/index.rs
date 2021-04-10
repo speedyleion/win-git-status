@@ -18,7 +18,7 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 
-use crate::direntry::{DirEntry, FileStat};
+use crate::direntry::{DirEntry, FileStat, ObjectType};
 
 use crate::error::StatusError;
 use std::collections::HashMap;
@@ -105,18 +105,27 @@ impl Index {
     ///
     ///
     fn read_entry(stream: &[u8]) -> IResult<&[u8], (String, DirEntry)> {
-        let (output, (mtime, size, sha, full_name)) = do_parse!(
+        let (output, (mtime, mode, size, sha, full_name)) = do_parse!(
             stream,
             take!(8)
                 >> mtime: be_u32
-                >> take!(24)
+                >> take!(14)
+                >> mode: be_u16
+                >> take!(8)
                 >> size: be_u32
                 >> sha: take!(20)
                 >> name_size: be_u16
                 >> name: take!(name_size)
                 >> take!(8 - ((62 + name_size) % 8))
-                >> (mtime, size, sha, String::from_utf8(name.to_vec()).unwrap())
+                >> (mtime, mode, size, sha, String::from_utf8(name.to_vec()).unwrap())
         )?;
+
+        let object_bits = mode >> 12;
+        let object_type = match object_bits {
+            0b1110 => ObjectType::GitLink,
+            0b1010 => ObjectType::SymLink,
+            _ => ObjectType::Regular,
+        };
 
         let full_path = Path::new(&full_name);
         let parent_path = full_path.parent().unwrap().to_str().unwrap();
@@ -125,6 +134,7 @@ impl Index {
             stat: FileStat { size, mtime },
             sha: sha.try_into().unwrap(),
             name,
+            object_type
         };
         Ok((output, (parent_path.to_string(), entry)))
     }
