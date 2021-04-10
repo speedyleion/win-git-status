@@ -38,7 +38,6 @@ impl RepoStatus {
     /// * `path` - The path to a git repo.  This logic will search up parent directories for
     ///     a git repo
     pub fn new(path: &Path) -> Result<RepoStatus, StatusError> {
-
         let repo: Repository;
         let discovery = Repository::discover(path);
         match discovery {
@@ -47,7 +46,12 @@ impl RepoStatus {
             // Due to different machines, their test environments, and where git repos could exist
             // it was decided to avoid misleading test failures and this was tested at one point
             // manually.
-            Err(_e) => return Err(StatusError{message: "fatal: not a git repository (or any of the parent directories): .git".to_string()}),
+            Err(_e) => {
+                return Err(StatusError {
+                    message: "fatal: not a git repository (or any of the parent directories): .git"
+                        .to_string(),
+                })
+            }
             Ok(r) => repo = r,
         };
         let repo_path = repo.path();
@@ -107,12 +111,9 @@ impl RepoStatus {
     }
 
     fn get_remote_branch_difference_message(&self) -> Option<String> {
-        let name = match self
-            .repo
-            .branch_upstream_name(&self.branch_name().unwrap()) {
+        let name = match self.repo.branch_upstream_name(&self.branch_name().unwrap()) {
             Err(_e) => return None,
             Ok(name) => name,
-
         };
         let short_name = name
             .as_str()
@@ -136,8 +137,8 @@ impl RepoStatus {
             0 => match after {
                 0 => {
                     message = formatdoc! {"\
-                        Your branch is up to date with '{branch}'.",
-                        branch=short_name }
+                    Your branch is up to date with '{branch}'.",
+                    branch=short_name }
                 }
                 _ => {
                     let plural = match after {
@@ -467,7 +468,10 @@ mod tests {
         let repo = test_repo(temp_dir.to_str().unwrap(), &vec![Path::new("what")]);
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
         let message = status.get_remote_branch_difference_message();
-        assert_eq!(message, Some("Your branch is up to date with 'origin/tip'.".to_string()));
+        assert_eq!(
+            message,
+            Some("Your branch is up to date with 'origin/tip'.".to_string())
+        );
     }
 
     #[test]
@@ -479,7 +483,10 @@ mod tests {
 
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
         let message = status.get_remote_branch_difference_message();
-        assert_eq!(message, Some("Your branch is up to date with 'origin/half'.".to_string()));
+        assert_eq!(
+            message,
+            Some("Your branch is up to date with 'origin/half'.".to_string())
+        );
     }
 
     #[test]

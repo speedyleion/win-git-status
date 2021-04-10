@@ -15,9 +15,9 @@ use crate::direntry::DirEntry;
 use crate::dirstat::DirectoryStat;
 use crate::error::StatusError;
 use crate::status::{Status, StatusEntry};
-use crate::{Index, RepoStatus};
+use crate::Index;
+use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use std::fs;
-use ignore::gitignore::{GitignoreBuilder, Gitignore};
 
 #[derive(Debug, Default, Clone)]
 struct IndexState {
@@ -240,16 +240,13 @@ fn process_new_item(
     })
 }
 
-fn is_ignored(
-    entry: &mut jwalk::DirEntry<(IndexState, bool)>,
-    name: &str) -> bool {
-
+fn is_ignored(entry: &mut jwalk::DirEntry<(IndexState, bool)>, name: &str) -> bool {
     let path = entry.path();
     let mut builder = GitignoreBuilder::new(&path);
     let directories: Vec<&Path> = path.ancestors().take(entry.depth + 1).collect();
     for dir in directories[1..].iter().rev() {
         let ignore_file = dir.join(".gitignore");
-        if ignore_file.exists(){
+        if ignore_file.exists() {
             builder.add(ignore_file);
         }
     }
@@ -275,7 +272,7 @@ fn is_ignored(
     false
 }
 
-fn directory_has_one_trackable_file(root: &Path, dir: &Path, ignores: &Vec<&Gitignore>) -> bool {
+fn directory_has_one_trackable_file(root: &Path, dir: &Path, ignores: &[&Gitignore]) -> bool {
     for entry in fs::read_dir(dir).unwrap() {
         let path = entry.unwrap().path();
         if !path.is_dir() {
@@ -287,11 +284,8 @@ fn directory_has_one_trackable_file(root: &Path, dir: &Path, ignores: &Vec<&Giti
                     return true;
                 }
             }
-        }
-        else {
-            if directory_has_one_trackable_file(root, &path, ignores) {
-                return true;
-            }
+        } else if directory_has_one_trackable_file(root, &path, ignores) {
+            return true;
         }
     }
     false
@@ -347,10 +341,10 @@ fn process_tracked_item(
 mod tests {
     use super::*;
     use crate::direntry::FileStat;
+    use git2::{Repository, Signature, Time};
     use std::fs;
     use std::time::SystemTime;
     use temp_testdir::TempDir;
-    use git2::{Repository, Signature, Time};
 
     // Create a test repo to be able to compare the index to the working tree.
     pub fn test_repo(path: &Path, files: &Vec<&Path>) -> Index {
@@ -377,7 +371,8 @@ mod tests {
             &tree,
             // No parents yet this is the first commit
             &[],
-        ).unwrap();
+        )
+        .unwrap();
         Index::new(&path.join(".git/index")).unwrap()
     }
 
@@ -529,7 +524,7 @@ mod tests {
         let temp_dir = TempDir::default();
         let index = test_repo(&temp_dir, &vec![Path::new("simple_file.txt")]);
 
-        for name in vec!["ignored.txt", ".gitignore"]{
+        for name in vec!["ignored.txt", ".gitignore"] {
             let file = temp_dir.join(name);
             fs::create_dir_all(file.parent().unwrap()).unwrap();
             fs::write(&file, "ignore*").unwrap();
@@ -550,7 +545,7 @@ mod tests {
         let temp_dir = TempDir::default();
         let index = test_repo(&temp_dir, &vec![Path::new("simple_file.txt")]);
 
-        for name in vec!["foo/ignored.txt", ".gitignore"]{
+        for name in vec!["foo/ignored.txt", ".gitignore"] {
             let file = temp_dir.join(name);
             fs::create_dir_all(file.parent().unwrap()).unwrap();
             fs::write(&file, "foo/").unwrap();
@@ -571,7 +566,7 @@ mod tests {
         let temp_dir = TempDir::default();
         let index = test_repo(&temp_dir, &vec![Path::new("simple_file.txt")]);
 
-        for name in vec!["foo/ignored.txt", ".gitignore"]{
+        for name in vec!["foo/ignored.txt", ".gitignore"] {
             let file = temp_dir.join(name);
             fs::create_dir_all(file.parent().unwrap()).unwrap();
             fs::write(&file, "ignore*").unwrap();
@@ -590,7 +585,8 @@ mod tests {
             StatusEntry {
                 name: "foo/".to_string(),
                 state: Status::New,
-        }];
+            },
+        ];
         assert_eq!(value.entries, entries);
     }
 }

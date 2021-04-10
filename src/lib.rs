@@ -14,8 +14,8 @@ mod tree;
 pub mod worktree;
 
 pub use direntry::DirEntry;
+pub use error::StatusError;
 pub use index::Index;
 pub use repo_status::RepoStatus;
 pub use tree::TreeDiff;
 pub use worktree::WorkTree;
-pub use error::StatusError;
