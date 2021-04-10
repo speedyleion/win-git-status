@@ -70,7 +70,11 @@ impl RepoStatus {
         let untracked = self.get_untracked_message();
         let epilog = RepoStatus::get_epilog(&staged, &unstaged, &untracked);
 
-        let mut message = vec![branch + &remote_state];
+        let branch_state = match remote_state {
+            None => branch,
+            Some(state) => format!("{}\n{}", branch, state),
+        };
+        let mut message = vec![branch_state];
 
         for block in &[&staged, &unstaged, &untracked, &epilog] {
             match block {
@@ -102,11 +106,14 @@ impl RepoStatus {
         }
     }
 
-    fn get_remote_branch_difference_message(&self) -> String {
-        let name = self
+    fn get_remote_branch_difference_message(&self) -> Option<String> {
+        let name = match self
             .repo
-            .branch_upstream_name(&self.branch_name().unwrap())
-            .unwrap();
+            .branch_upstream_name(&self.branch_name().unwrap()) {
+            Err(_e) => return None,
+            Ok(name) => name,
+
+        };
         let short_name = name
             .as_str()
             .unwrap()
@@ -124,19 +131,20 @@ impl RepoStatus {
             .graph_ahead_behind(local_oid, upstream_oid)
             .unwrap();
 
+        let message: String;
         match before {
             0 => match after {
                 0 => {
-                    formatdoc! {"\
-                    Your branch is up to date with '{branch}'.",
-                    branch=short_name }
+                    message = formatdoc! {"\
+                        Your branch is up to date with '{branch}'.",
+                        branch=short_name }
                 }
                 _ => {
                     let plural = match after {
                         1 => "",
                         _ => "s",
                     };
-                    formatdoc! {"\
+                    message = formatdoc! {"\
                         Your branch is behind '{branch}' by {commits} commit{plural}, and can be fast-forwarded.
                           (use \"git pull\" to update your local branch)",
                     branch=short_name, commits=after, plural=plural }
@@ -148,14 +156,14 @@ impl RepoStatus {
                         1 => "",
                         _ => "s",
                     };
-                    formatdoc! {"\
+                    message = formatdoc! {"\
                         Your branch is ahead of '{branch}' by {commits} commit{plural}.
                           (use \"git push\" to publish your local commits)",
                     branch=short_name, commits=before, plural=plural
                     }
                 }
                 _ => {
-                    formatdoc! {"\
+                    message = formatdoc! {"\
                         Your branch and '{branch}' have diverged,
                         and have {before} and {after} different commits each, respectively.
                           (use \"git pull\" to merge the remote branch into yours)",
@@ -164,6 +172,7 @@ impl RepoStatus {
                 }
             },
         }
+        Some(message)
     }
     fn get_detached_message(&self) -> String {
         let commit_sha = self
@@ -458,7 +467,7 @@ mod tests {
         let repo = test_repo(temp_dir.to_str().unwrap(), &vec![Path::new("what")]);
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
         let message = status.get_remote_branch_difference_message();
-        assert_eq!(message, "Your branch is up to date with 'origin/tip'.");
+        assert_eq!(message, Some("Your branch is up to date with 'origin/tip'.".to_string()));
     }
 
     #[test]
@@ -470,7 +479,7 @@ mod tests {
 
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
         let message = status.get_remote_branch_difference_message();
-        assert_eq!(message, "Your branch is up to date with 'origin/half'.");
+        assert_eq!(message, Some("Your branch is up to date with 'origin/half'.".to_string()));
     }
 
     #[test]
@@ -489,7 +498,7 @@ mod tests {
         let expected = indoc! {"\
             Your branch is behind 'origin/tip' by 2 commits, and can be fast-forwarded.
               (use \"git pull\" to update your local branch)"};
-        assert_eq!(message, expected);
+        assert_eq!(message, Some(expected.to_string()));
     }
 
     #[test]
@@ -508,7 +517,7 @@ mod tests {
         let expected = indoc! {"\
             Your branch is ahead of 'origin/half' by 1 commit.
               (use \"git push\" to publish your local commits)"};
-        assert_eq!(message, expected);
+        assert_eq!(message, Some(expected.to_string()));
     }
 
     #[test]
@@ -527,7 +536,7 @@ mod tests {
         let expected = indoc! {"\
             Your branch is ahead of 'origin/half' by 3 commits.
               (use \"git push\" to publish your local commits)"};
-        assert_eq!(message, expected);
+        assert_eq!(message, Some(expected.to_string()));
     }
 
     #[test]
@@ -552,7 +561,21 @@ mod tests {
             Your branch and 'origin/tip' have diverged,
             and have 3 and 2 different commits each, respectively.
               (use \"git pull\" to merge the remote branch into yours)"};
-        assert_eq!(message, expected);
+        assert_eq!(message, Some(expected.to_string()));
+    }
+
+    #[test]
+    fn test_no_remote_branch() {
+        let temp_dir = TempDir::default();
+        let repo = test_repo(temp_dir.to_str().unwrap(), &vec![Path::new("what")]);
+
+        let commit = repo.head().unwrap().peel_to_commit().unwrap();
+        repo.branch("a_new_branch", &commit, false).unwrap();
+        repo.set_head("refs/heads/a_new_branch").unwrap();
+
+        let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
+        let message = status.get_remote_branch_difference_message();
+        assert_eq!(message, None);
     }
 
     #[test]
