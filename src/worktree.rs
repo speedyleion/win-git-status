@@ -18,6 +18,7 @@ use crate::status::{Status, StatusEntry};
 use crate::Index;
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use std::fs;
+use git2::Repository;
 
 #[derive(Debug, Default, Clone)]
 struct IndexState {
@@ -291,29 +292,29 @@ fn directory_has_one_trackable_file(root: &Path, dir: &Path, ignores: &[&Gitigno
     false
 }
 
-fn lookup_git_link(git_link: &Path) -> Result<String, Box<dyn std::error::Error + 'static>> {
-    let contents: String = String::from_utf8_lossy(&fs::read(git_link)?).parse()?;
-    let link = contents.split(' ').last().unwrap().to_string();
-    Ok(link)
-}
 fn submodule_status(dir_entry: &mut jwalk::DirEntry<(IndexState, bool)>) -> Option<StatusEntry> {
     let path = dir_entry.path();
-    let index_file = lookup_git_link(&path.join(".git")).unwrap();
-    let index_file = path.join(index_file);
-    let index_file = index_file.join("index");
-    let index = Index::new(&index_file).unwrap();
-
-    let value = WorkTree::diff_against_index_recursive(&path, index, false).unwrap();
-    if value.entries.is_empty() {
-        return None;
+    let repo = Repository::open(path).unwrap();
+    let statuses = repo.statuses(None).unwrap();
+    let mut modified_content = false;
+    let mut untracked_content = false;
+    for stat in statuses.iter() {
+        match stat.head_to_index(){
+            Some(_) => modified_content = true,
+            None => (),
+        }
+        match stat.index_to_workdir(){
+            Some(_) => untracked_content = true,
+            None => (),
+        }
     }
-    let mut name = get_relative_entry_path_name(dir_entry);
-    name.push('/');
-
-    Some(StatusEntry {
-        name,
-        state: Status::Modified,
-    })
+    if modified_content || untracked_content {
+        return Some(StatusEntry {
+            name: get_relative_entry_path_name(dir_entry),
+            state: Status::Modified,
+        });
+    }
+    None
 }
 
 fn process_tracked_item(

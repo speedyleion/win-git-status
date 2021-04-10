@@ -48,6 +48,7 @@ This currently doesn't handle significant features like:
  - rebase states
  - cherry-pick states
  - bisect state
+ - rename detection
  - submodules, (these are partially implemented, but won't notice commit changes)
     
 ### Performance

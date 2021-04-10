@@ -67,9 +67,32 @@ fn worktree_diff_with_dirty_submodule() {
 
     let value = WorkTree::diff_against_index(&super_repo, index).unwrap();
     let entries = vec![StatusEntry {
-        name: "sub_repo_dir/".to_string(),
+        name: "sub_repo_dir".to_string(),
         state: Status::Modified,
     }];
 
     assert_eq!(value.entries, entries);
 }
+
+//  Behaviour needed for submodules
+//
+//  modified:   <red>sub_repo_dir</red> (untracked content)
+//      Has an untracked file.
+//
+//  modified:   <red>sub_repo_dir</red> (new commits)
+//      has a different commit, can be newer or older doesn't matter
+//
+//  modified:   <red>sub_repo_dir</red> (modified content)
+//      has a changed file in the working tree, or has a staged file
+//
+//  modified:   <red>sub_repo_dir</red> (new commits, untracked content)
+//      has a different commit and an untracked file
+//
+//  modified:   <red>sub_repo_dir</red> (new commits, modified content)
+//      has a different commit and a modified file
+//
+//  modified:   <red>sub_repo_dir</red> (new commits, modified content, untracked content)
+//      has a different commit, a modified file, and an untracked file
+
+
+
