@@ -49,7 +49,9 @@ This currently doesn't handle significant features like:
  - cherry-pick states
  - bisect state
  - rename detection
- - submodules, (these are partially implemented, but won't notice commit changes)
+ - submodules will notice changes, but don't provide nice hints like 
+   (new commit, modified content, new content)
+ - colorized output
     
 ### Performance
 For repos without submodules ``win-git-status`` currently does not perform as well as 
