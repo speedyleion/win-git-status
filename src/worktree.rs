@@ -17,7 +17,7 @@ use crate::error::StatusError;
 use crate::status::{Status, StatusEntry};
 use crate::{Index, RepoStatus};
 use std::fs;
-use ignore::gitignore::GitignoreBuilder;
+use ignore::gitignore::{GitignoreBuilder, Gitignore};
 
 #[derive(Debug, Default, Clone)]
 struct IndexState {
@@ -258,11 +258,40 @@ fn is_ignored(
     // Developer note: Not sure how best to test the global git ignore so it's manually tested for
     // now :(.
     let (global_ignore, _) = GitignoreBuilder::new("").build_global();
-    let ignores = vec![ignore, global_ignore];
-    for ignore in ignores {
+    let ignores = vec![&ignore, &global_ignore];
+    for ignore in &ignores {
         let matched = ignore.matched_path_or_any_parents(name, entry.file_type.is_dir());
         if matched.is_ignore() {
             return true;
+        }
+    }
+
+    // For directories, we need to see if there are any files in the directory that
+    // aren't ignored.
+    if entry.file_type.is_dir() {
+        let path = entry.path();
+        return !directory_has_one_trackable_file(&path, &path, &ignores);
+    }
+    false
+}
+
+fn directory_has_one_trackable_file(root: &Path, dir: &Path, ignores: &Vec<&Gitignore>) -> bool {
+    for entry in fs::read_dir(dir).unwrap() {
+        let path = entry.unwrap().path();
+        if !path.is_dir() {
+            for ignore in ignores {
+                let relative_path = diff_paths(&path, root).unwrap();
+                let name = relative_path.to_str().unwrap().replace("\\", "/");
+                let matched = ignore.matched_path_or_any_parents(name, false);
+                if !matched.is_ignore() {
+                    return true;
+                }
+            }
+        }
+        else {
+            if directory_has_one_trackable_file(root, &path, ignores) {
+                return true;
+            }
         }
     }
     false
@@ -454,6 +483,16 @@ mod tests {
     }
 
     #[test]
+    fn test_new_directory_in_worktree_does_not_show() {
+        let temp_dir = TempDir::default();
+        let index = test_repo(&temp_dir, &vec![Path::new("simple_file.txt")]);
+        fs::create_dir_all(temp_dir.join("new_dir")).unwrap();
+
+        let value = WorkTree::diff_against_index(&temp_dir, index).unwrap();
+        assert_eq!(value.entries, vec![]);
+    }
+
+    #[test]
     fn test_deleted_file_in_worktree() {
         let names = vec!["file_1.txt", "file_2.txt", "foo.txt"];
         let files = names.iter().map(|n| Path::new(n)).collect();
@@ -526,24 +565,31 @@ mod tests {
         }];
         assert_eq!(value.entries, entries);
     }
-    
+
     #[test]
-    fn test_ignored_file_in_worktree() {
+    fn test_unignored_file() {
         let temp_dir = TempDir::default();
         let index = test_repo(&temp_dir, &vec![Path::new("simple_file.txt")]);
 
-        for name in vec!["ignored.txt", ".gitignore"]{
+        for name in vec!["foo/ignored.txt", ".gitignore"]{
             let file = temp_dir.join(name);
             fs::create_dir_all(file.parent().unwrap()).unwrap();
             fs::write(&file, "ignore*").unwrap();
         }
+        let file = temp_dir.join(".gitignore");
+        fs::write(&file, "!ignore*").unwrap();
 
         let value = WorkTree::diff_against_index(&temp_dir, index).unwrap();
 
-        // Only the gitignore should show up as new
-        let entries = vec![StatusEntry {
-            name: ".gitignore".to_string(),
-            state: Status::New,
+        // The file should now also be listed since it was unignored in the sub directory
+        let entries = vec![
+            StatusEntry {
+                name: ".gitignore".to_string(),
+                state: Status::New,
+            },
+            StatusEntry {
+                name: "foo/ignore.txt".to_string(),
+                state: Status::New,
         }];
         assert_eq!(value.entries, entries);
     }
