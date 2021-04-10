@@ -244,21 +244,28 @@ fn is_ignored(
     entry: &mut jwalk::DirEntry<(IndexState, bool)>,
     name: &str) -> bool {
 
-    println!("{:?}", name);
     let path = entry.path();
     let mut builder = GitignoreBuilder::new(&path);
     let directories: Vec<&Path> = path.ancestors().take(entry.depth + 1).collect();
     for dir in directories[1..].iter().rev() {
         let ignore_file = dir.join(".gitignore");
-        println!("{:?}", ignore_file);
         if ignore_file.exists(){
             builder.add(ignore_file);
         }
     }
-
     let ignore = builder.build().unwrap();
-    let matched = ignore.matched_path_or_any_parents(name, entry.file_type.is_dir());
-    matched.is_ignore()
+
+    // Developer note: Not sure how best to test the global git ignore so it's manually tested for
+    // now :(.
+    let (global_ignore, _) = GitignoreBuilder::new("").build_global();
+    let ignores = vec![ignore, global_ignore];
+    for ignore in ignores {
+        let matched = ignore.matched_path_or_any_parents(name, entry.file_type.is_dir());
+        if matched.is_ignore() {
+            return true;
+        }
+    }
+    false
 }
 
 fn lookup_git_link(git_link: &Path) -> Result<String, Box<dyn std::error::Error + 'static>> {
@@ -508,6 +515,27 @@ mod tests {
             let file = temp_dir.join(name);
             fs::create_dir_all(file.parent().unwrap()).unwrap();
             fs::write(&file, "foo/").unwrap();
+        }
+
+        let value = WorkTree::diff_against_index(&temp_dir, index).unwrap();
+
+        // Only the gitignore should show up as new
+        let entries = vec![StatusEntry {
+            name: ".gitignore".to_string(),
+            state: Status::New,
+        }];
+        assert_eq!(value.entries, entries);
+    }
+    
+    #[test]
+    fn test_ignored_file_in_worktree() {
+        let temp_dir = TempDir::default();
+        let index = test_repo(&temp_dir, &vec![Path::new("simple_file.txt")]);
+
+        for name in vec!["ignored.txt", ".gitignore"]{
+            let file = temp_dir.join(name);
+            fs::create_dir_all(file.parent().unwrap()).unwrap();
+            fs::write(&file, "ignore*").unwrap();
         }
 
         let value = WorkTree::diff_against_index(&temp_dir, index).unwrap();
