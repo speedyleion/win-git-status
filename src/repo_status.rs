@@ -26,11 +26,30 @@ impl Debug for RepoStatus {
     }
 }
 
+impl From<git2::Error> for StatusError {
+    fn from(err: git2::Error) -> StatusError {
+        StatusError {
+            message: err.to_string(),
+        }
+    }
+}
+
 impl RepoStatus {
-    /// * `path` - The path to a git repo.  This logic will _not_ search up parent directories for
+    /// * `path` - The path to a git repo.  This logic will search up parent directories for
     ///     a git repo
     pub fn new(path: &Path) -> Result<RepoStatus, StatusError> {
-        let repo = Repository::open(path).unwrap();
+
+        let repo: Repository;
+        let discovery = Repository::discover(path);
+        match discovery {
+            // Developer note:
+            // The behaviour for when this is an error is not tested in an automated fashion.
+            // Due to different machines, their test environments, and where git repos could exist
+            // it was decided to avoid misleading test failures and this was tested at one point
+            // manually.
+            Err(_e) => return Err(StatusError{message: "fatal: not a git repository (or any of the parent directories): .git".to_string()}),
+            Ok(r) => repo = r,
+        };
         let repo_path = repo.path();
         let index_file = repo_path.join("index");
         let index = Index::new(&*index_file)?;

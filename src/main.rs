@@ -1,10 +1,13 @@
 use std::env;
-use std::path::Path;
 use win_git_status::RepoStatus;
+use win_git_status::StatusError;
 
-fn main() {
-    let args: Vec<String> = env::args().collect();
-    let path = Path::new(&args[1]);
-    let status = RepoStatus::new(path).unwrap();
-    println!("{}", status.message().unwrap());
+fn main() -> Result<(), StatusError> {
+    let path = env::current_dir()?;
+    let status = RepoStatus::new(&path);
+    match status {
+        Err(error) => println!("{}", error.message),
+        Ok(status) => println!("{}", status.message().unwrap()),
+    };
+    Ok(())
 }
