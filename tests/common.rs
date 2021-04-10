@@ -4,7 +4,7 @@
  *    (See accompanying file LICENSE or copy at
  *          https://www.boost.org/LICENSE_1_0.txt)
  */
-use git2::{Repository, Signature, SubmoduleUpdateOptions, Time, Commit};
+use git2::{Commit, Repository, Signature, SubmoduleUpdateOptions, Time};
 use std::fs;
 use std::path::Path;
 
@@ -34,7 +34,7 @@ pub fn test_repo(path: &Path, files: Vec<&Path>) -> Repository {
             // No parents yet this is the first commit
             &[],
         )
-            .unwrap();
+        .unwrap();
     }
     repo
 }
@@ -103,5 +103,5 @@ pub fn commit_file(repo: &Repository, file: &Path) {
         &tree,
         &parents[..],
     )
-        .unwrap();
+    .unwrap();
 }

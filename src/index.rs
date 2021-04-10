@@ -117,7 +117,13 @@ impl Index {
                 >> name_size: be_u16
                 >> name: take!(name_size)
                 >> take!(8 - ((62 + name_size) % 8))
-                >> (mtime, mode, size, sha, String::from_utf8(name.to_vec()).unwrap())
+                >> (
+                    mtime,
+                    mode,
+                    size,
+                    sha,
+                    String::from_utf8(name.to_vec()).unwrap()
+                )
         )?;
 
         let object_bits = mode >> 12;
@@ -134,7 +140,7 @@ impl Index {
             stat: FileStat { size, mtime },
             sha: sha.try_into().unwrap(),
             name,
-            object_type
+            object_type,
         };
         Ok((output, (parent_path.to_string(), entry)))
     }

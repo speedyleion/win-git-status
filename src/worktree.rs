@@ -16,9 +16,9 @@ use crate::dirstat::DirectoryStat;
 use crate::error::StatusError;
 use crate::status::{Status, StatusEntry};
 use crate::Index;
+use git2::Repository;
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use std::fs;
-use git2::Repository;
 
 #[derive(Debug, Default, Clone)]
 struct IndexState {
@@ -302,24 +302,31 @@ fn directory_has_one_trackable_file(root: &Path, dir: &Path, ignores: &[&Gitigno
     false
 }
 
-fn submodule_status(dir_entry: &mut jwalk::DirEntry<(IndexState, bool)>,
-                    index_entry: &DirEntry) -> Option<StatusEntry> {
+fn submodule_status(
+    dir_entry: &mut jwalk::DirEntry<(IndexState, bool)>,
+    index_entry: &DirEntry,
+) -> Option<StatusEntry> {
     let path = dir_entry.path();
     let repo = Repository::open(path).unwrap();
     let statuses = repo.statuses(None).unwrap();
     let mut modified_content = false;
     let mut untracked_content = false;
     for stat in statuses.iter() {
-        match stat.head_to_index(){
-            Some(_) => modified_content = true,
-            None => (),
+        if stat.head_to_index().is_some() {
+            modified_content = true
         }
-        match stat.index_to_workdir(){
-            Some(_) => untracked_content = true,
-            None => (),
+        if stat.index_to_workdir().is_some() {
+            untracked_content = true
         }
     }
-    let new_commits = index_entry.sha != repo.head().unwrap().peel_to_commit().unwrap().id().as_bytes();
+    let new_commits = index_entry.sha
+        != repo
+            .head()
+            .unwrap()
+            .peel_to_commit()
+            .unwrap()
+            .id()
+            .as_bytes();
     if modified_content || untracked_content || new_commits {
         return Some(StatusEntry {
             name: get_relative_entry_path_name(dir_entry),

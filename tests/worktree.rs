@@ -6,12 +6,12 @@
  */
 
 extern crate win_git_status;
+use git2::Repository;
 use std::fs;
 use std::path::Path;
 use temp_testdir::TempDir;
 use win_git_status::status::{Status, StatusEntry};
 use win_git_status::{Index, WorkTree};
-use git2::Repository;
 
 mod common;
 
@@ -28,11 +28,7 @@ fn worktree_diff_with_submodule() {
     let sub_files = sub_names.iter().map(|n| Path::new(n)).collect();
     common::test_repo(&sub_repo, sub_files);
 
-    common::add_submodule(
-        &super_repo,
-        sub_repo.to_str().unwrap(),
-        "sub_repo_dir",
-    );
+    common::add_submodule(&super_repo, sub_repo.to_str().unwrap(), "sub_repo_dir");
 
     let index_file = super_repo.join(".git/index");
     let index = Index::new(&index_file).unwrap();
@@ -54,11 +50,7 @@ fn submodule_with_new_file() {
     let sub_files = sub_names.iter().map(|n| Path::new(n)).collect();
     common::test_repo(&sub_repo, sub_files);
 
-    common::add_submodule(
-        &super_repo,
-        sub_repo.to_str().unwrap(),
-        "sub_repo_dir",
-    );
+    common::add_submodule(&super_repo, sub_repo.to_str().unwrap(), "sub_repo_dir");
 
     let new_sub_repo_file = super_repo.join("sub_repo_dir/new_file.txt");
     fs::write(&new_sub_repo_file, "stuff").unwrap();
@@ -88,11 +80,7 @@ fn submodule_with_modified_files() {
     let sub_files = sub_names.iter().map(|n| Path::new(n)).collect();
     common::test_repo(&sub_repo, sub_files);
 
-    common::add_submodule(
-        &super_repo,
-        sub_repo.to_str().unwrap(),
-        "sub_repo_dir",
-    );
+    common::add_submodule(&super_repo, sub_repo.to_str().unwrap(), "sub_repo_dir");
 
     let modified_sub_repo_file = super_repo.join("sub_repo_dir/sure.c");
     fs::write(&modified_sub_repo_file, "some modified stuff").unwrap();
@@ -109,7 +97,6 @@ fn submodule_with_modified_files() {
     assert_eq!(value.entries, entries);
 }
 
-
 #[test]
 fn submodule_with_staged_files() {
     let temp = TempDir::default().permanent();
@@ -123,11 +110,7 @@ fn submodule_with_staged_files() {
     let sub_files = sub_names.iter().map(|n| Path::new(n)).collect();
     common::test_repo(&sub_repo_name, sub_files);
 
-    common::add_submodule(
-        &super_repo,
-        sub_repo_name.to_str().unwrap(),
-        "sub_repo_dir",
-    );
+    common::add_submodule(&super_repo, sub_repo_name.to_str().unwrap(), "sub_repo_dir");
 
     let modified_sub_repo_file = super_repo.join("sub_repo_dir/sure.c");
     fs::write(&modified_sub_repo_file, "some modified stuff").unwrap();
@@ -159,11 +142,7 @@ fn submodule_with_new_commits() {
     let sub_files = sub_names.iter().map(|n| Path::new(n)).collect();
     common::test_repo(&sub_repo_name, sub_files);
 
-    common::add_submodule(
-        &super_repo,
-        sub_repo_name.to_str().unwrap(),
-        "sub_repo_dir",
-    );
+    common::add_submodule(&super_repo, sub_repo_name.to_str().unwrap(), "sub_repo_dir");
 
     let modified_sub_repo_file = super_repo.join("sub_repo_dir/sure.c");
     fs::write(&modified_sub_repo_file, "some modified stuff").unwrap();
@@ -197,11 +176,7 @@ fn worktree_diff_with_submodule_removed() {
     let sub_files = sub_names.iter().map(|n| Path::new(n)).collect();
     common::test_repo(&sub_repo, sub_files);
 
-    common::add_submodule(
-        &super_repo,
-        sub_repo.to_str().unwrap(),
-        "sub_repo_dir",
-    );
+    common::add_submodule(&super_repo, sub_repo.to_str().unwrap(), "sub_repo_dir");
 
     fs::remove_dir_all(super_repo.join("sub_repo_dir")).unwrap();
 
@@ -231,6 +206,3 @@ fn worktree_diff_with_submodule_removed() {
 //
 //  modified:   <red>sub_repo_dir</red> (new commits, modified content, untracked content)
 //      has a different commit, a modified file, and an untracked file
-
-
-
