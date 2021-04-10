@@ -340,10 +340,8 @@ fn process_tracked_item(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::direntry::FileStat;
     use git2::{Repository, Signature, Time};
     use std::fs;
-    use std::time::SystemTime;
     use temp_testdir::TempDir;
 
     // Create a test repo to be able to compare the index to the working tree.

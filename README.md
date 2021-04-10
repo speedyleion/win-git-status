@@ -41,7 +41,9 @@ For example one could do:
     win-git-status.exe .
 
 This currently doesn't handle significant features like:
- - ignore files,
+ - info/exclude file
+ - ignore files are implemented but they should be optimized, 
+   currently they are being re-read on every untracked file.
  - merge states
  - rebase states
  - cherry-pick states
