@@ -292,7 +292,8 @@ fn directory_has_one_trackable_file(root: &Path, dir: &Path, ignores: &[&Gitigno
     false
 }
 
-fn submodule_status(dir_entry: &mut jwalk::DirEntry<(IndexState, bool)>) -> Option<StatusEntry> {
+fn submodule_status(dir_entry: &mut jwalk::DirEntry<(IndexState, bool)>,
+                    index_entry: &DirEntry) -> Option<StatusEntry> {
     let path = dir_entry.path();
     let repo = Repository::open(path).unwrap();
     let statuses = repo.statuses(None).unwrap();
@@ -308,7 +309,8 @@ fn submodule_status(dir_entry: &mut jwalk::DirEntry<(IndexState, bool)>) -> Opti
             None => (),
         }
     }
-    if modified_content || untracked_content {
+    let new_commits = index_entry.sha != repo.head().unwrap().peel_to_commit().unwrap().id().as_bytes();
+    if modified_content || untracked_content || new_commits {
         return Some(StatusEntry {
             name: get_relative_entry_path_name(dir_entry),
             state: Status::Modified,
@@ -325,7 +327,7 @@ fn process_tracked_item(
     if dir_entry.file_type.is_dir() {
         // Be sure and don't walk into submodules from here
         dir_entry.read_children_path = None;
-        return submodule_status(dir_entry);
+        return submodule_status(dir_entry, index_entry);
     }
 
     if is_modified(dir_entry, index_entry, stats) {
