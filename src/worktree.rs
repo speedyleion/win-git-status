@@ -6,7 +6,6 @@
  */
 
 use core::cmp::Ordering;
-use rayon;
 use jwalk::{Parallelism, WalkDirGeneric};
 use pathdiff::diff_paths;
 use std::path::{Path, PathBuf};
@@ -27,7 +26,7 @@ struct IndexState {
     index: Arc<Index>,
     changed_files: Arc<Mutex<Vec<StatusEntry>>>,
     ignores: Vec<Arc<Gitignore>>,
-    thread_pool: Option<Arc<rayon::ThreadPool>>
+    thread_pool: Option<Arc<rayon::ThreadPool>>,
 }
 
 impl From<jwalk::Error> for StatusError {
@@ -63,16 +62,12 @@ impl WorkTree {
 
         let work_tree = WorkTree {
             path: String::from(path.to_str().unwrap()),
-            entries:  changed_files.lock().unwrap().to_vec(),
+            entries: changed_files.lock().unwrap().to_vec(),
         };
         Ok(work_tree)
     }
 
-    fn scoped_diff(
-        path: &Path,
-        index: Index,
-        changed_files: &Arc<Mutex<Vec<StatusEntry>>>,
-    ) {
+    fn scoped_diff(path: &Path, index: Index, changed_files: &Arc<Mutex<Vec<StatusEntry>>>) {
         let thread_pool_builder = rayon::ThreadPoolBuilder::new();
         let thread_pool = Arc::new(thread_pool_builder.build().unwrap());
         let (global_ignore, _) = GitignoreBuilder::new("").build_global();
@@ -81,7 +76,7 @@ impl WorkTree {
             index: Arc::new(index),
             changed_files: Arc::clone(changed_files),
             ignores: vec![Arc::new(global_ignore)],
-            thread_pool: Some(Arc::clone(&thread_pool))
+            thread_pool: Some(Arc::clone(&thread_pool)),
         };
 
         let walk_dir = WalkDirGeneric::<(IndexState, bool)>::new(path)
@@ -166,7 +161,9 @@ fn get_file_deltas(
         match index_file {
             Some(i_file) => match w_file.file_name().cmp(i_file.name.as_ref()) {
                 Ordering::Equal => {
-                    if let Some(entry) = process_tracked_item(w_file, i_file, &mut stats, read_dir_state) {
+                    if let Some(entry) =
+                        process_tracked_item(w_file, i_file, &mut stats, read_dir_state)
+                    {
                         file_changes.lock().unwrap().push(entry);
                     }
                     index_file = index_iter.next();
@@ -331,7 +328,13 @@ fn submodule_status(
     let path = dir_entry.path();
     let sha = index_entry.sha.to_vec();
     let changed_clone = Arc::clone(&read_dir_state.changed_files);
-    read_dir_state.thread_pool.as_ref().unwrap().install(move || {submodule_spawned_status(name, path.to_str().unwrap().to_string(), sha, changed_clone)});
+    read_dir_state
+        .thread_pool
+        .as_ref()
+        .unwrap()
+        .install(move || {
+            submodule_spawned_status(name, path.to_str().unwrap().to_string(), sha, changed_clone)
+        });
 }
 
 fn submodule_spawned_status(
@@ -361,10 +364,9 @@ fn submodule_spawned_status(
             .id()
             .as_bytes();
     if modified_content || untracked_content || new_commits {
-        changed_files.lock().unwrap().push(
-            StatusEntry {
-                name,
-                state: Status::Modified,
+        changed_files.lock().unwrap().push(StatusEntry {
+            name,
+            state: Status::Modified,
         });
     }
 }
@@ -379,7 +381,7 @@ fn process_tracked_item(
         // Be sure and don't walk into submodules from here
         dir_entry.read_children_path = None;
         submodule_status(dir_entry, index_entry, read_dir_state);
-        return None
+        return None;
     }
 
     if is_modified(dir_entry, index_entry, stats) {
