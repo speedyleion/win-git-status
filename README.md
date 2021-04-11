@@ -58,8 +58,12 @@ For repos without submodules ``win-git-status`` currently does not perform as we
 ``git status``.
 
 Running on this repo:
-- 0.049s for ``git status``
-- 0.102s for ``win-git-status.exe .``
+- 0.044s for ``git status``
+- 0.055s for ``win-git-status.exe .``
+
+Running on [llvm-project](https://github.com/llvm/llvm-project/commit/0f9f0a4046e11c2b4c130640f343e3b2b5db08c1)
+- 0.335s for ``git status``
+- 0.775 for ``win-git-status.exe``
 
 For repos with submodules ``win-git-status.exe`` can be up to 6-7x faster at times.
 For one proprietary repo:
