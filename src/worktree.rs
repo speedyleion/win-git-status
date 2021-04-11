@@ -167,7 +167,7 @@ fn get_file_deltas(
         match index_file {
             Some(i_file) => match w_file.file_name().cmp(i_file.name.as_ref()) {
                 Ordering::Equal => {
-                    if let Some(entry) = process_tracked_item(w_file, i_file, &mut stats) {
+                    if let Some(entry) = process_tracked_item(w_file, i_file, &mut stats, file_changes) {
                         file_changes.lock().unwrap().push(entry);
                     }
                     index_file = index_iter.next();
@@ -326,7 +326,8 @@ fn directory_has_one_trackable_file(root: &Path, dir: &Path, ignores: &[Arc<Giti
 fn submodule_status(
     dir_entry: &jwalk::DirEntry<(IndexState, bool)>,
     index_entry: &DirEntry,
-) -> Option<StatusEntry> {
+    changed_files: &Arc<Mutex<Vec<StatusEntry>>>,
+) {
     let path = dir_entry.path();
     let repo = Repository::open(path).unwrap();
     let statuses = repo.statuses(None).unwrap();
@@ -349,23 +350,24 @@ fn submodule_status(
             .id()
             .as_bytes();
     if modified_content || untracked_content || new_commits {
-        return Some(StatusEntry {
-            name: get_relative_entry_path_name(dir_entry),
-            state: Status::Modified,
+        changed_files.lock().unwrap().push(
+            StatusEntry {
+                name: get_relative_entry_path_name(dir_entry),
+                state: Status::Modified,
         });
     }
-    None
 }
 
 fn process_tracked_item(
     dir_entry: &mut jwalk::DirEntry<(IndexState, bool)>,
     index_entry: &DirEntry,
     stats: &mut Option<DirectoryStat>,
+    changed_files: &Arc<Mutex<Vec<StatusEntry>>>,
 ) -> Option<StatusEntry> {
     if dir_entry.file_type.is_dir() {
         // Be sure and don't walk into submodules from here
         dir_entry.read_children_path = None;
-        submodule_status(dir_entry, index_entry);
+        submodule_status(dir_entry, index_entry, changed_files);
         return None
     }
 
