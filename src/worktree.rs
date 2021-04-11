@@ -636,7 +636,7 @@ mod tests {
                 state: Status::New,
             },
             StatusEntry {
-                name: "foo/what".to_string(),
+                name: "foo/what/".to_string(),
                 state: Status::New,
             },
         ];
