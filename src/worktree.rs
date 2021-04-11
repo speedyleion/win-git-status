@@ -6,6 +6,7 @@
  */
 
 use core::cmp::Ordering;
+use rayon;
 use jwalk::{Parallelism, WalkDirGeneric};
 use pathdiff::diff_paths;
 use std::path::{Path, PathBuf};
@@ -330,16 +331,18 @@ fn submodule_status(
 ) {
     let name = get_relative_entry_path_name(dir_entry);
     let path = dir_entry.path();
-    submodule_spawned_status(&name, &path, index_entry, changed_files);
+    let sha = index_entry.sha.to_vec();
+    let changed_clone = changed_files.clone();
+    rayon::spawn(move || {submodule_spawned_status(name, path.to_str().unwrap().to_string(), sha, changed_clone)});
 }
 
 fn submodule_spawned_status(
-    name: &str,
-    path: &Path,
-    index_entry: &DirEntry,
-    changed_files: &Arc<Mutex<Vec<StatusEntry>>>,
+    name: String,
+    path: String,
+    index_sha: Vec<u8>,
+    changed_files: Arc<Mutex<Vec<StatusEntry>>>,
 ) {
-    let repo = Repository::open(path).unwrap();
+    let repo = Repository::open(&path).unwrap();
     let statuses = repo.statuses(None).unwrap();
     let mut modified_content = false;
     let mut untracked_content = false;
@@ -351,7 +354,7 @@ fn submodule_spawned_status(
             untracked_content = true
         }
     }
-    let new_commits = index_entry.sha
+    let new_commits = index_sha
         != repo
             .head()
             .unwrap()
@@ -362,7 +365,7 @@ fn submodule_spawned_status(
     if modified_content || untracked_content || new_commits {
         changed_files.lock().unwrap().push(
             StatusEntry {
-                name: name.to_string(),
+                name,
                 state: Status::Modified,
         });
     }
