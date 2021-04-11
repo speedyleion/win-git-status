@@ -149,7 +149,7 @@ fn update_ignores(path: &Path, ignores: &mut Vec<Arc<Gitignore>>) {
     let mut builder = GitignoreBuilder::new(path);
     builder.add(ignore_file);
     let ignore = builder.build().unwrap();
-    ignores.push(Arc::new(ignore));
+    ignores.insert(0, Arc::new(ignore));
 }
 
 fn get_file_deltas(
@@ -274,6 +274,11 @@ fn is_ignored(entry: &mut jwalk::DirEntry<(IndexState, bool)>, name: &str,
     let is_dir = entry.file_type.is_dir();
     for ignore in ignores {
         let matched = ignore.matched_path_or_any_parents(name, is_dir);
+
+        // Whitelisting happens when a pattern is added back to valid files via the preceding "!"
+        if matched.is_whitelist() {
+            return false;
+        }
         if matched.is_ignore() {
             return true;
         }
@@ -283,7 +288,8 @@ fn is_ignored(entry: &mut jwalk::DirEntry<(IndexState, bool)>, name: &str,
     // aren't ignored.
     if is_dir {
         let path = entry.path();
-        return !directory_has_one_trackable_file(&path, &path, &ignores);
+        let root = path.ancestors().nth(entry.depth).unwrap();
+        return !directory_has_one_trackable_file(&root, &path, &ignores);
     }
     false
 }
@@ -293,13 +299,18 @@ fn directory_has_one_trackable_file(root: &Path, dir: &Path,
     for entry in fs::read_dir(dir).unwrap() {
         let path = entry.unwrap().path();
         if !path.is_dir() {
+            let relative_path = diff_paths(&path, root).unwrap();
+            let name = relative_path.to_str().unwrap().replace("\\", "/");
+            let mut ignored = false;
             for ignore in ignores {
-                let relative_path = diff_paths(&path, root).unwrap();
-                let name = relative_path.to_str().unwrap().replace("\\", "/");
-                let matched = ignore.matched_path_or_any_parents(name, false);
-                if !matched.is_ignore() {
-                    return true;
+                let matched = ignore.matched_path_or_any_parents(&name, false);
+                if matched.is_ignore() {
+                    ignored = true;
+                    break;
                 }
+            }
+            if !ignored {
+                return true;
             }
         } else if directory_has_one_trackable_file(root, &path, ignores) {
             return true;
@@ -587,15 +598,17 @@ mod tests {
 
     #[test]
     fn test_unignored_file() {
+        let seed_names = vec!["simple_file.txt", "foo/.gitignore"];
         let temp_dir = TempDir::default();
-        let index = test_repo(&temp_dir, &vec![Path::new("simple_file.txt")]);
+        let files = seed_names.iter().map(|n| Path::new(n)).collect();
+        let index = test_repo(&temp_dir, &files);
 
         for name in vec!["foo/ignored.txt", ".gitignore", "bar/always.txt"] {
             let file = temp_dir.join(name);
             fs::create_dir_all(file.parent().unwrap()).unwrap();
             fs::write(&file, "ignore*\nalways*").unwrap();
         }
-        let file = temp_dir.join(".gitignore");
+        let file = temp_dir.join("foo/.gitignore");
         fs::write(&file, "!ignore*").unwrap();
 
         let value = WorkTree::diff_against_index(&temp_dir, index).unwrap();
@@ -607,7 +620,11 @@ mod tests {
                 state: Status::New,
             },
             StatusEntry {
-                name: "foo/".to_string(),
+                name: "foo/.gitignore".to_string(),
+                state: Status::Modified,
+            },
+            StatusEntry {
+                name: "foo/ignored.txt".to_string(),
                 state: Status::New,
             },
         ];
