@@ -328,7 +328,17 @@ fn submodule_status(
     index_entry: &DirEntry,
     changed_files: &Arc<Mutex<Vec<StatusEntry>>>,
 ) {
+    let name = get_relative_entry_path_name(dir_entry);
     let path = dir_entry.path();
+    submodule_spawned_status(&name, &path, index_entry, changed_files);
+}
+
+fn submodule_spawned_status(
+    name: &str,
+    path: &Path,
+    index_entry: &DirEntry,
+    changed_files: &Arc<Mutex<Vec<StatusEntry>>>,
+) {
     let repo = Repository::open(path).unwrap();
     let statuses = repo.statuses(None).unwrap();
     let mut modified_content = false;
@@ -352,7 +362,7 @@ fn submodule_status(
     if modified_content || untracked_content || new_commits {
         changed_files.lock().unwrap().push(
             StatusEntry {
-                name: get_relative_entry_path_name(dir_entry),
+                name: name.to_string(),
                 state: Status::Modified,
         });
     }
