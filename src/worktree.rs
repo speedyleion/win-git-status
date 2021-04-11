@@ -25,6 +25,7 @@ struct IndexState {
     path: PathBuf,
     index: Arc<Index>,
     changed_files: Arc<Mutex<Vec<StatusEntry>>>,
+    ignores: Vec<Arc<Gitignore>>,
 }
 
 impl From<jwalk::Error> for StatusError {
@@ -49,7 +50,7 @@ pub struct WorkTree {
 impl WorkTree {
     /// Compares an index to the on disk work tree.
     ///
-    /// # Argumenst
+    /// # Arguments
     /// * `path` - The path to a git repo.  This logic will _not_ search up parent directories for
     ///     a git repo
     /// * `index` - The index to compare against
@@ -65,10 +66,12 @@ impl WorkTree {
         let changed_files = Arc::new(Mutex::new(vec![]));
         let entries = Arc::clone(&changed_files);
 
+        let (global_ignore, _) = GitignoreBuilder::new("").build_global();
         let index_state = IndexState {
             path: PathBuf::from(path),
             index: Arc::new(index),
             changed_files,
+            ignores: vec![Arc::new(global_ignore)],
         };
 
         let parallelism = match root {
@@ -107,6 +110,8 @@ fn process_directory(
         None => return,
     };
 
+    update_ignores(path, &mut read_dir_state.ignores);
+
     // Skip '.git' directory
     children.retain(|dir_entry_result| {
         dir_entry_result
@@ -131,17 +136,29 @@ fn process_directory(
         // directories, since git tracks files not directories
         None => {}
         Some(dir_entry) => {
-            get_file_deltas(children, dir_entry, index, &read_dir_state.changed_files)
+            get_file_deltas(children, dir_entry, index, read_dir_state)
         }
     }
+}
+
+fn update_ignores(path: &Path, ignores: &mut Vec<Arc<Gitignore>>) {
+    let ignore_file = path.join(".gitignore");
+    if !ignore_file.exists() {
+        return;
+    }
+    let mut builder = GitignoreBuilder::new(path);
+    builder.add(ignore_file);
+    let ignore = builder.build().unwrap();
+    ignores.push(Arc::new(ignore));
 }
 
 fn get_file_deltas(
     worktree: &mut Vec<Result<jwalk::DirEntry<(IndexState, bool)>, jwalk::Error>>,
     index_entry: &[DirEntry],
     index: &Arc<Index>,
-    file_changes: &Mutex<Vec<StatusEntry>>,
+    read_dir_state: &IndexState,
 ) {
+    let file_changes = &read_dir_state.changed_files;
     let mut worktree_iter = worktree.iter_mut();
     let mut index_iter = index_entry.iter();
     let mut worktree_file = worktree_iter.next();
@@ -159,7 +176,7 @@ fn get_file_deltas(
                     worktree_file = worktree_iter.next();
                 }
                 Ordering::Less => {
-                    if let Some(entry) = process_new_item(w_file, index) {
+                    if let Some(entry) = process_new_item(w_file, index, &read_dir_state.ignores) {
                         file_changes.lock().unwrap().push(entry);
                     }
                     worktree_file = worktree_iter.next();
@@ -172,7 +189,7 @@ fn get_file_deltas(
                 }
             },
             None => {
-                if let Some(entry) = process_new_item(w_file, index) {
+                if let Some(entry) = process_new_item(w_file, index, &read_dir_state.ignores) {
                     file_changes.lock().unwrap().push(entry);
                 }
                 worktree_file = worktree_iter.next();
@@ -227,6 +244,7 @@ fn get_relative_entry_path_name(entry: &jwalk::DirEntry<(IndexState, bool)>) -> 
 fn process_new_item(
     dir_entry: &mut jwalk::DirEntry<(IndexState, bool)>,
     index: &Arc<Index>,
+    ignores: &Vec<Arc<Gitignore>>,
 ) -> Option<StatusEntry> {
     let mut name = get_relative_entry_path_name(dir_entry);
     if dir_entry.file_type.is_dir() {
@@ -236,11 +254,11 @@ fn process_new_item(
         dir_entry.read_children_path = None;
     }
 
-    if is_ignored(dir_entry, &name) {
+    if is_ignored(dir_entry, &name, ignores) {
         return None;
     }
 
-    // Done after ignore as ignore doens't handle trailing "/"
+    // Done after ignore as ignore doesn't handle trailing "/"
     if dir_entry.file_type.is_dir() {
         name.push('/');
     }
@@ -251,24 +269,11 @@ fn process_new_item(
     })
 }
 
-fn is_ignored(entry: &mut jwalk::DirEntry<(IndexState, bool)>, name: &str) -> bool {
-    let path = entry.path();
-    let mut builder = GitignoreBuilder::new(&path);
-    let directories: Vec<&Path> = path.ancestors().take(entry.depth + 1).collect();
-    for dir in directories[1..].iter().rev() {
-        let ignore_file = dir.join(".gitignore");
-        if ignore_file.exists() {
-            builder.add(ignore_file);
-        }
-    }
-    let ignore = builder.build().unwrap();
-
-    // Developer note: Not sure how best to test the global git ignore so it's manually tested for
-    // now :(.
-    let (global_ignore, _) = GitignoreBuilder::new("").build_global();
-    let ignores = vec![&ignore, &global_ignore];
-    for ignore in &ignores {
-        let matched = ignore.matched_path_or_any_parents(name, entry.file_type.is_dir());
+fn is_ignored(entry: &mut jwalk::DirEntry<(IndexState, bool)>, name: &str,
+              ignores: &Vec<Arc<Gitignore>>) -> bool {
+    let is_dir = entry.file_type.is_dir();
+    for ignore in ignores {
+        let matched = ignore.matched_path_or_any_parents(name, is_dir);
         if matched.is_ignore() {
             return true;
         }
@@ -276,14 +281,15 @@ fn is_ignored(entry: &mut jwalk::DirEntry<(IndexState, bool)>, name: &str) -> bo
 
     // For directories, we need to see if there are any files in the directory that
     // aren't ignored.
-    if entry.file_type.is_dir() {
+    if is_dir {
         let path = entry.path();
         return !directory_has_one_trackable_file(&path, &path, &ignores);
     }
     false
 }
 
-fn directory_has_one_trackable_file(root: &Path, dir: &Path, ignores: &[&Gitignore]) -> bool {
+fn directory_has_one_trackable_file(root: &Path, dir: &Path,
+                                    ignores: &Vec<Arc<Gitignore>>) -> bool {
     for entry in fs::read_dir(dir).unwrap() {
         let path = entry.unwrap().path();
         if !path.is_dir() {
