@@ -166,7 +166,7 @@ fn get_file_deltas(
         match index_file {
             Some(i_file) => match w_file.file_name().cmp(i_file.name.as_ref()) {
                 Ordering::Equal => {
-                    if let Some(entry) = process_tracked_item(w_file, i_file, &mut stats, file_changes) {
+                    if let Some(entry) = process_tracked_item(w_file, i_file, &mut stats, read_dir_state) {
                         file_changes.lock().unwrap().push(entry);
                     }
                     index_file = index_iter.next();
@@ -325,13 +325,13 @@ fn directory_has_one_trackable_file(root: &Path, dir: &Path, ignores: &[Arc<Giti
 fn submodule_status(
     dir_entry: &jwalk::DirEntry<(IndexState, bool)>,
     index_entry: &DirEntry,
-    changed_files: &Arc<Mutex<Vec<StatusEntry>>>,
+    read_dir_state: &IndexState,
 ) {
     let name = get_relative_entry_path_name(dir_entry);
     let path = dir_entry.path();
     let sha = index_entry.sha.to_vec();
-    let changed_clone = Arc::clone(changed_files).clone();
-    rayon::spawn(move || {submodule_spawned_status(name, path.to_str().unwrap().to_string(), sha, changed_clone)});
+    let changed_clone = Arc::clone(&read_dir_state.changed_files);
+    read_dir_state.thread_pool.as_ref().unwrap().install(move || {submodule_spawned_status(name, path.to_str().unwrap().to_string(), sha, changed_clone)});
 }
 
 fn submodule_spawned_status(
@@ -373,12 +373,12 @@ fn process_tracked_item(
     dir_entry: &mut jwalk::DirEntry<(IndexState, bool)>,
     index_entry: &DirEntry,
     stats: &mut Option<DirectoryStat>,
-    changed_files: &Arc<Mutex<Vec<StatusEntry>>>,
+    read_dir_state: &IndexState,
 ) -> Option<StatusEntry> {
     if dir_entry.file_type.is_dir() {
         // Be sure and don't walk into submodules from here
         dir_entry.read_children_path = None;
-        submodule_status(dir_entry, index_entry, changed_files);
+        submodule_status(dir_entry, index_entry, read_dir_state);
         return None
     }
 
