@@ -135,9 +135,7 @@ fn process_directory(
         // None happens when dealing with an empty repo, normally we don't have empty index
         // directories, since git tracks files not directories
         None => {}
-        Some(dir_entry) => {
-            get_file_deltas(children, dir_entry, index, read_dir_state)
-        }
+        Some(dir_entry) => get_file_deltas(children, dir_entry, index, read_dir_state),
     }
 }
 
@@ -244,7 +242,7 @@ fn get_relative_entry_path_name(entry: &jwalk::DirEntry<(IndexState, bool)>) -> 
 fn process_new_item(
     dir_entry: &mut jwalk::DirEntry<(IndexState, bool)>,
     index: &Arc<Index>,
-    ignores: &Vec<Arc<Gitignore>>,
+    ignores: &[Arc<Gitignore>],
 ) -> Option<StatusEntry> {
     let mut name = get_relative_entry_path_name(dir_entry);
     if dir_entry.file_type.is_dir() {
@@ -269,8 +267,11 @@ fn process_new_item(
     })
 }
 
-fn is_ignored(entry: &mut jwalk::DirEntry<(IndexState, bool)>, name: &str,
-              ignores: &Vec<Arc<Gitignore>>) -> bool {
+fn is_ignored(
+    entry: &mut jwalk::DirEntry<(IndexState, bool)>,
+    name: &str,
+    ignores: &[Arc<Gitignore>],
+) -> bool {
     let is_dir = entry.file_type.is_dir();
     for ignore in ignores {
         let matched = ignore.matched_path_or_any_parents(name, is_dir);
@@ -294,8 +295,7 @@ fn is_ignored(entry: &mut jwalk::DirEntry<(IndexState, bool)>, name: &str,
     false
 }
 
-fn directory_has_one_trackable_file(root: &Path, dir: &Path,
-                                    ignores: &Vec<Arc<Gitignore>>) -> bool {
+fn directory_has_one_trackable_file(root: &Path, dir: &Path, ignores: &[Arc<Gitignore>]) -> bool {
     for entry in fs::read_dir(dir).unwrap() {
         let path = entry.unwrap().path();
         if !path.is_dir() {
