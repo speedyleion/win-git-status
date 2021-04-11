@@ -304,6 +304,10 @@ fn directory_has_one_trackable_file(root: &Path, dir: &Path, ignores: &[Arc<Giti
             let mut ignored = false;
             for ignore in ignores {
                 let matched = ignore.matched_path_or_any_parents(&name, false);
+                if matched.is_whitelist() {
+                    ignored = false;
+                    break;
+                }
                 if matched.is_ignore() {
                     ignored = true;
                     break;
@@ -597,13 +601,18 @@ mod tests {
     }
 
     #[test]
-    fn test_unignored_file() {
+    fn test_unignored_files() {
         let seed_names = vec!["simple_file.txt", "foo/.gitignore"];
         let temp_dir = TempDir::default();
         let files = seed_names.iter().map(|n| Path::new(n)).collect();
         let index = test_repo(&temp_dir, &files);
 
-        for name in vec!["foo/ignored.txt", ".gitignore", "bar/always.txt"] {
+        for name in vec![
+            "foo/ignored.txt",
+            ".gitignore",
+            "bar/always.txt",
+            "foo/what/why/ignored.txt",
+        ] {
             let file = temp_dir.join(name);
             fs::create_dir_all(file.parent().unwrap()).unwrap();
             fs::write(&file, "ignore*\nalways*").unwrap();
@@ -613,7 +622,6 @@ mod tests {
 
         let value = WorkTree::diff_against_index(&temp_dir, index).unwrap();
 
-        // The file's directory should now also be listed since it was unignored in the sub directory
         let entries = vec![
             StatusEntry {
                 name: ".gitignore".to_string(),
@@ -625,6 +633,10 @@ mod tests {
             },
             StatusEntry {
                 name: "foo/ignored.txt".to_string(),
+                state: Status::New,
+            },
+            StatusEntry {
+                name: "foo/what".to_string(),
                 state: Status::New,
             },
         ];
