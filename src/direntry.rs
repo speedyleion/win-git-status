@@ -25,7 +25,7 @@ pub struct FileStat {
 }
 
 /// Represents an git entry in the index or working tree i.e. a file or blob
-#[derive(PartialEq, Eq, Debug, Default)]
+#[derive(PartialEq, Eq, Debug, Default, Clone)]
 pub struct DirEntry {
     pub object_type: ObjectType,
     pub stat: FileStat,

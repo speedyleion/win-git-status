@@ -324,7 +324,7 @@ fn directory_has_one_trackable_file(root: &Path, dir: &Path, ignores: &[Arc<Giti
 }
 
 fn submodule_status(
-    dir_entry: &mut jwalk::DirEntry<(IndexState, bool)>,
+    dir_entry: &jwalk::DirEntry<(IndexState, bool)>,
     index_entry: &DirEntry,
 ) -> Option<StatusEntry> {
     let path = dir_entry.path();
@@ -365,7 +365,8 @@ fn process_tracked_item(
     if dir_entry.file_type.is_dir() {
         // Be sure and don't walk into submodules from here
         dir_entry.read_children_path = None;
-        return submodule_status(dir_entry, index_entry);
+        submodule_status(dir_entry, index_entry);
+        return None
     }
 
     if is_modified(dir_entry, index_entry, stats) {
