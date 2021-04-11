@@ -27,6 +27,7 @@ struct IndexState {
     index: Arc<Index>,
     changed_files: Arc<Mutex<Vec<StatusEntry>>>,
     ignores: Vec<Arc<Gitignore>>,
+    thread_pool: Option<Arc<rayon::ThreadPool>>
 }
 
 impl From<jwalk::Error> for StatusError {
@@ -56,28 +57,31 @@ impl WorkTree {
     ///     a git repo
     /// * `index` - The index to compare against
     pub fn diff_against_index(path: &Path, index: Index) -> Result<WorkTree, StatusError> {
-        WorkTree::diff_against_index_recursive(path, index, true)
+        let changed_files = Arc::new(Mutex::new(vec![]));
+
+        WorkTree::scoped_diff(path, index, &changed_files);
+
+        let work_tree = WorkTree {
+            path: String::from(path.to_str().unwrap()),
+            entries:  changed_files.lock().unwrap().to_vec(),
+        };
+        Ok(work_tree)
     }
 
-    pub fn diff_against_index_recursive(
+    fn scoped_diff(
         path: &Path,
         index: Index,
-        root: bool,
-    ) -> Result<WorkTree, StatusError> {
-        let changed_files = Arc::new(Mutex::new(vec![]));
-        let entries = Arc::clone(&changed_files);
-
+        changed_files: &Arc<Mutex<Vec<StatusEntry>>>,
+    ) {
+        let thread_pool_builder = rayon::ThreadPoolBuilder::new();
+        let thread_pool = Arc::new(thread_pool_builder.build().unwrap());
         let (global_ignore, _) = GitignoreBuilder::new("").build_global();
         let index_state = IndexState {
             path: PathBuf::from(path),
             index: Arc::new(index),
-            changed_files,
+            changed_files: Arc::clone(changed_files),
             ignores: vec![Arc::new(global_ignore)],
-        };
-
-        let parallelism = match root {
-            true => Parallelism::RayonDefaultPool,
-            false => Parallelism::Serial,
+            thread_pool: Some(Arc::clone(&thread_pool))
         };
 
         let walk_dir = WalkDirGeneric::<(IndexState, bool)>::new(path)
@@ -85,17 +89,11 @@ impl WorkTree {
             .sort(true)
             .root_read_dir_state(index_state)
             .process_read_dir(process_directory)
-            .parallelism(parallelism);
+            .parallelism(Parallelism::RayonExistingPool(Arc::clone(&thread_pool)));
 
         for _ in walk_dir {
             continue;
         }
-
-        let work_tree = WorkTree {
-            path: String::from(path.to_str().unwrap()),
-            entries: entries.lock().unwrap().to_vec(),
-        };
-        Ok(work_tree)
     }
 }
 
@@ -332,7 +330,7 @@ fn submodule_status(
     let name = get_relative_entry_path_name(dir_entry);
     let path = dir_entry.path();
     let sha = index_entry.sha.to_vec();
-    let changed_clone = changed_files.clone();
+    let changed_clone = Arc::clone(changed_files).clone();
     rayon::spawn(move || {submodule_spawned_status(name, path.to_str().unwrap().to_string(), sha, changed_clone)});
 }
 
