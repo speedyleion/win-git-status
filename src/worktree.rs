@@ -590,10 +590,10 @@ mod tests {
         let temp_dir = TempDir::default();
         let index = test_repo(&temp_dir, &vec![Path::new("simple_file.txt")]);
 
-        for name in vec!["foo/ignored.txt", ".gitignore"] {
+        for name in vec!["foo/ignored.txt", ".gitignore", "bar/always.txt"] {
             let file = temp_dir.join(name);
             fs::create_dir_all(file.parent().unwrap()).unwrap();
-            fs::write(&file, "ignore*").unwrap();
+            fs::write(&file, "ignore*\nalways*").unwrap();
         }
         let file = temp_dir.join(".gitignore");
         fs::write(&file, "!ignore*").unwrap();
