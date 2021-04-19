@@ -6,13 +6,13 @@
  */
 
 use core::cmp::Ordering;
-use jwalk::{Parallelism, WalkDirGeneric};
 use pathdiff::diff_paths;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+use rayon;
 
 use crate::direntry::{DirEntry, ObjectType};
-use crate::dirstat::DirectoryStat;
+use crate::read_dir;
 use crate::error::StatusError;
 use crate::status::{Status, StatusEntry};
 use crate::Index;
@@ -26,16 +26,8 @@ struct IndexState {
     index: Arc<Index>,
     changed_files: Arc<Mutex<Vec<StatusEntry>>>,
     ignores: Vec<Arc<Gitignore>>,
-    thread_pool: Option<Arc<rayon::ThreadPool>>,
 }
 
-impl From<jwalk::Error> for StatusError {
-    fn from(err: jwalk::Error) -> StatusError {
-        StatusError {
-            message: err.to_string(),
-        }
-    }
-}
 /// A worktree of a repo.
 ///
 /// Some common git internal terms.
@@ -68,15 +60,12 @@ impl WorkTree {
     }
 
     fn scoped_diff(path: &Path, index: Index, changed_files: &Arc<Mutex<Vec<StatusEntry>>>) {
-        let thread_pool_builder = rayon::ThreadPoolBuilder::new();
-        let thread_pool = Arc::new(thread_pool_builder.build().unwrap());
         let (global_ignore, _) = GitignoreBuilder::new("").build_global();
         let index_state = IndexState {
             path: PathBuf::from(path),
             index: Arc::new(index),
             changed_files: Arc::clone(changed_files),
             ignores: vec![Arc::new(global_ignore)],
-            thread_pool: Some(Arc::clone(&thread_pool)),
         };
 
         let walk_dir = WalkDirGeneric::<(IndexState, bool)>::new(path)
@@ -93,32 +82,12 @@ impl WorkTree {
 }
 
 fn process_directory(
-    depth: Option<usize>,
     path: &Path,
     read_dir_state: &mut IndexState,
-    children: &mut Vec<Result<jwalk::DirEntry<(IndexState, bool)>, jwalk::Error>>,
+    entries: &mut Vec<read_dir::DirEntry>,
 ) {
-    // jwalk will use None for depth on the parent of the root path, not sure why...
-    let _depth = match depth {
-        Some(depth) => depth,
-        None => return,
-    };
-
     update_ignores(path, &mut read_dir_state.ignores);
 
-    // Skip '.git' directory
-    children.retain(|dir_entry_result| {
-        dir_entry_result
-            .as_ref()
-            .map(|dir_entry| {
-                dir_entry
-                    .file_name
-                    .to_str()
-                    .map(|s| s != ".git")
-                    .unwrap_or(false)
-            })
-            .unwrap_or(false)
-    });
     let index = &read_dir_state.index;
     let relative_path = diff_paths(path, &read_dir_state.path).unwrap();
     let unix_path = relative_path.to_str().unwrap().replace("\\", "/");
@@ -129,7 +98,7 @@ fn process_directory(
         // None happens when dealing with an empty repo, normally we don't have empty index
         // directories, since git tracks files not directories
         None => {}
-        Some(dir_entry) => get_file_deltas(children, dir_entry, index, read_dir_state),
+        Some(dir_entry) => get_file_deltas(entries, dir_entry, index, read_dir_state),
     }
 }
 
@@ -145,7 +114,7 @@ fn update_ignores(path: &Path, ignores: &mut Vec<Arc<Gitignore>>) {
 }
 
 fn get_file_deltas(
-    worktree: &mut Vec<Result<jwalk::DirEntry<(IndexState, bool)>, jwalk::Error>>,
+    worktree: &mut Vec<read_dir::DirEntry>,
     index_entry: &[DirEntry],
     index: &Arc<Index>,
     read_dir_state: &IndexState,
