@@ -50,31 +50,30 @@ fn read_dir(path: &Path, read_dir_state: &mut ReadWorktreeState, depth: usize, s
     for entry in fs::read_dir(path).unwrap() {
         let entry = entry.unwrap();
         let metadata = entry.metadata().unwrap();
-        files.push(ReadDirEntry{
+        files.push(ReadDirEntry {
             is_dir: entry.file_type().unwrap().is_dir(),
             name: entry.file_name().to_str().unwrap().to_string(),
             process: true,
-            stat: FileStat{
+            stat: FileStat {
                 mtime: metadata.modified().unwrap().duration_since(UNIX_EPOCH).unwrap().as_millis() as u32,
                 size: metadata.len() as u32,
             },
             parent_path: Arc::clone(&parent_path),
             depth,
         });
-
-        files = files.into_iter().filter(|f| f.name == ".").collect();
-        process_directory(path, read_dir_state, &mut files, scope);
-
-        let to_process = files.iter().filter(|f| f.is_dir && f.process);
-        for dir in to_process {
-            let path = path.join(&dir.name);
-            let mut read_dir_state = read_dir_state.clone();
-            scope.spawn(move |s|{
-                read_dir(&path, &mut read_dir_state, depth + 1, s);
-            });
-        }
     }
 
+    files = files.into_iter().filter(|f| f.name != ".git").collect();
+    process_directory(path, read_dir_state, &mut files, scope);
+
+    let to_process = files.iter().filter(|f| f.is_dir && f.process);
+    for dir in to_process {
+        let path = path.join(&dir.name);
+        let mut read_dir_state = read_dir_state.clone();
+        scope.spawn(move |s|{
+            read_dir(&path, &mut read_dir_state, depth + 1, s);
+        });
+    }
 }
 
 /// A worktree of a repo.
@@ -118,7 +117,7 @@ impl WorkTree {
         };
 
         rayon::scope(|s|{
-            read_dir(path, &mut read_dir_state, 0, s);
+            read_dir(path, &mut read_dir_state, 1, s);
         });
     }
 }
@@ -163,13 +162,13 @@ fn get_file_deltas(
     read_dir_state: &ReadWorktreeState,
     scope: &rayon::Scope,
 ) {
+    println!("The worktree {:?}", worktree);
     let file_changes = &read_dir_state.changed_files;
     let mut worktree_iter = worktree.iter_mut();
     let mut index_iter = index_entry.iter();
     let mut worktree_file = worktree_iter.next();
     let mut index_file = index_iter.next();
     while let Some(w_file) = worktree_file {
-        // let w_file = wa_file;
         match index_file {
             Some(i_file) => match w_file.name.cmp(&i_file.name) {
                 Ordering::Equal => {
@@ -234,6 +233,8 @@ fn is_modified(
 fn get_relative_entry_path_name(entry: &ReadDirEntry) -> String {
     let path = entry.path();
     let root = path.ancestors().nth(entry.depth).unwrap();
+    println!("The path {:?}", path);
+    println!("The root {:?}", root);
     let relative_path = diff_paths(entry.path(), root).unwrap();
     relative_path.to_str().unwrap().replace("\\", "/")
 }
