@@ -20,7 +20,7 @@ use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use std::fs;
 use std::time::UNIX_EPOCH;
 
-#[derive(Debug, PartialOrd, PartialEq, Ord, Eq)]
+#[derive(Debug)]
 pub struct ReadDirEntry {
     pub name: String,
     pub is_dir: bool,
@@ -64,6 +64,9 @@ fn read_dir(path: &Path, read_dir_state: &mut ReadWorktreeState, depth: usize, s
     }
 
     files = files.into_iter().filter(|f| f.name != ".git").collect();
+    files.sort_by(|a, b|{
+        a.name.cmp(&b.name)
+    });
     process_directory(path, read_dir_state, &mut files, scope);
 
     let to_process = files.iter().filter(|f| f.is_dir && f.process);
@@ -162,7 +165,7 @@ fn get_file_deltas(
     read_dir_state: &ReadWorktreeState,
     scope: &rayon::Scope,
 ) {
-    println!("The worktree {:?}", worktree);
+    // println!("The worktree {:?}", worktree);
     let file_changes = &read_dir_state.changed_files;
     let mut worktree_iter = worktree.iter_mut();
     let mut index_iter = index_entry.iter();
@@ -233,8 +236,6 @@ fn is_modified(
 fn get_relative_entry_path_name(entry: &ReadDirEntry) -> String {
     let path = entry.path();
     let root = path.ancestors().nth(entry.depth).unwrap();
-    println!("The path {:?}", path);
-    println!("The root {:?}", root);
     let relative_path = diff_paths(entry.path(), root).unwrap();
     relative_path.to_str().unwrap().replace("\\", "/")
 }
