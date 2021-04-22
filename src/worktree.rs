@@ -11,21 +11,70 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use rayon;
 
-use crate::direntry::{DirEntry, ObjectType};
-use crate::read_dir;
+use crate::direntry::{DirEntry, ObjectType, FileStat};
 use crate::error::StatusError;
 use crate::status::{Status, StatusEntry};
 use crate::Index;
 use git2::Repository;
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use std::fs;
+use std::time::UNIX_EPOCH;
+
+#[derive(Debug, PartialOrd, PartialEq, Ord, Eq)]
+pub struct ReadDirEntry {
+    pub name: String,
+    pub is_dir: bool,
+    pub process: bool,
+    pub stat: FileStat,
+    pub parent_path: Arc<PathBuf>,
+    pub depth: usize,
+}
+
+impl ReadDirEntry {
+    pub fn path(&self) -> PathBuf {
+        self.parent_path.join(&self.name)
+    }
+}
 
 #[derive(Debug, Default, Clone)]
-struct IndexState {
+struct ReadWorktreeState {
     path: PathBuf,
     index: Arc<Index>,
     changed_files: Arc<Mutex<Vec<StatusEntry>>>,
     ignores: Vec<Arc<Gitignore>>,
+}
+
+pub fn read_dir(path: &Path, read_dir_state: &mut ReadWorktreeState, depth: usize, scope: &rayon::Scope) {
+    let mut files = vec![];
+    let parent_path = Arc::new(path.to_owned());
+    for entry in fs::read_dir(path).unwrap() {
+        let entry = entry.unwrap();
+        let metadata = entry.metadata().unwrap();
+        files.push(ReadDirEntry{
+            is_dir: entry.file_type().unwrap().is_dir(),
+            name: entry.file_name().to_str().unwrap().to_string(),
+            process: true,
+            stat: FileStat{
+                mtime: metadata.modified().unwrap().duration_since(UNIX_EPOCH).unwrap().as_millis() as u32,
+                size: metadata.len() as u32,
+            },
+            parent_path: Arc::clone(&parent_path),
+            depth,
+        });
+
+        files = files.into_iter().filter(|f| f.name == ".").collect();
+        process_directory(path, read_dir_state, &mut files, scope);
+
+        let to_process = files.iter().filter(|f| f.is_dir && f.process);
+        for dir in to_process {
+            let path = path.join(&dir.name);
+            let mut read_dir_state = read_dir_state.clone();
+            scope.spawn(move |s|{
+                read_dir(&path, &mut read_dir_state, depth + 1, s);
+            });
+        }
+    }
+
 }
 
 /// A worktree of a repo.
@@ -61,30 +110,24 @@ impl WorkTree {
 
     fn scoped_diff(path: &Path, index: Index, changed_files: &Arc<Mutex<Vec<StatusEntry>>>) {
         let (global_ignore, _) = GitignoreBuilder::new("").build_global();
-        let index_state = IndexState {
+        let mut read_dir_state = ReadWorktreeState {
             path: PathBuf::from(path),
             index: Arc::new(index),
             changed_files: Arc::clone(changed_files),
             ignores: vec![Arc::new(global_ignore)],
         };
 
-        let walk_dir = WalkDirGeneric::<(IndexState, bool)>::new(path)
-            .skip_hidden(false)
-            .sort(true)
-            .root_read_dir_state(index_state)
-            .process_read_dir(process_directory)
-            .parallelism(Parallelism::RayonExistingPool(Arc::clone(&thread_pool)));
-
-        for _ in walk_dir {
-            continue;
-        }
+        rayon::scope(|s|{
+            read_dir(path, &mut read_dir_state, 0, s);
+        });
     }
 }
 
 fn process_directory(
     path: &Path,
-    read_dir_state: &mut IndexState,
-    entries: &mut Vec<read_dir::DirEntry>,
+    read_dir_state: &mut ReadWorktreeState,
+    entries: &mut Vec<ReadDirEntry>,
+    scope: &rayon::Scope,
 ) {
     update_ignores(path, &mut read_dir_state.ignores);
 
@@ -98,7 +141,7 @@ fn process_directory(
         // None happens when dealing with an empty repo, normally we don't have empty index
         // directories, since git tracks files not directories
         None => {}
-        Some(dir_entry) => get_file_deltas(entries, dir_entry, index, read_dir_state),
+        Some(dir_entry) => get_file_deltas(entries, dir_entry, index, read_dir_state, scope),
     }
 }
 
@@ -114,24 +157,24 @@ fn update_ignores(path: &Path, ignores: &mut Vec<Arc<Gitignore>>) {
 }
 
 fn get_file_deltas(
-    worktree: &mut Vec<read_dir::DirEntry>,
+    worktree: &mut Vec<ReadDirEntry>,
     index_entry: &[DirEntry],
     index: &Arc<Index>,
-    read_dir_state: &IndexState,
+    read_dir_state: &ReadWorktreeState,
+    scope: &rayon::Scope,
 ) {
     let file_changes = &read_dir_state.changed_files;
     let mut worktree_iter = worktree.iter_mut();
     let mut index_iter = index_entry.iter();
     let mut worktree_file = worktree_iter.next();
     let mut index_file = index_iter.next();
-    let mut stats = None;
-    while let Some(wa_file) = worktree_file.as_mut() {
-        let w_file = wa_file.as_mut().unwrap();
+    while let Some(wa_file) = worktree_file {
+        let w_file = wa_file;
         match index_file {
-            Some(i_file) => match w_file.file_name().cmp(i_file.name.as_ref()) {
+            Some(i_file) => match w_file.name.cmp(&i_file.name) {
                 Ordering::Equal => {
                     if let Some(entry) =
-                        process_tracked_item(w_file, i_file, &mut stats, read_dir_state)
+                        process_tracked_item(w_file, i_file, read_dir_state, scope)
                     {
                         file_changes.lock().unwrap().push(entry);
                     }
@@ -180,41 +223,31 @@ fn process_deleted_item(index_entry: &DirEntry) -> Option<StatusEntry> {
 }
 
 fn is_modified(
-    worktree_file: &mut jwalk::DirEntry<(IndexState, bool)>,
+    worktree_file: &mut ReadDirEntry,
     index_file: &DirEntry,
-    stats: &mut Option<DirectoryStat>,
 ) -> bool {
-    if stats.is_none() {
-        *stats = Some(DirectoryStat::new(worktree_file.parent_path()));
-    }
-    let dir_stat = stats.as_ref().unwrap();
-    let name = worktree_file.file_name.to_str().unwrap().to_string();
-    let stat = dir_stat.file_stats.get(&name).unwrap();
-    let mut modified = false;
-    if index_file.stat != *stat {
-        modified = true;
-    }
+    let modified = index_file.stat != worktree_file.stat;
     modified
 }
 
-fn get_relative_entry_path_name(entry: &jwalk::DirEntry<(IndexState, bool)>) -> String {
+fn get_relative_entry_path_name(entry: &ReadDirEntry) -> String {
     let path = entry.path();
     let root = path.ancestors().nth(entry.depth).unwrap();
-    let relative_path = diff_paths(entry.path(), root).unwrap();
+    let relative_path = diff_paths(path, root).unwrap();
     relative_path.to_str().unwrap().replace("\\", "/")
 }
 
 fn process_new_item(
-    dir_entry: &mut jwalk::DirEntry<(IndexState, bool)>,
+    dir_entry: &mut ReadDirEntry,
     index: &Arc<Index>,
     ignores: &[Arc<Gitignore>],
 ) -> Option<StatusEntry> {
     let mut name = get_relative_entry_path_name(dir_entry);
-    if dir_entry.file_type.is_dir() {
+    if dir_entry.is_dir {
         if index.entries.contains_key(&name) {
             return None;
         }
-        dir_entry.read_children_path = None;
+        dir_entry.process = false;
     }
 
     if is_ignored(dir_entry, &name, ignores) {
@@ -222,7 +255,7 @@ fn process_new_item(
     }
 
     // Done after ignore as ignore doesn't handle trailing "/"
-    if dir_entry.file_type.is_dir() {
+    if dir_entry.is_dir {
         name.push('/');
     }
 
@@ -233,11 +266,11 @@ fn process_new_item(
 }
 
 fn is_ignored(
-    entry: &mut jwalk::DirEntry<(IndexState, bool)>,
+    entry: &mut ReadDirEntry,
     name: &str,
     ignores: &[Arc<Gitignore>],
 ) -> bool {
-    let is_dir = entry.file_type.is_dir();
+    let is_dir = entry.is_dir;
     for ignore in ignores {
         let matched = ignore.matched_path_or_any_parents(name, is_dir);
 
@@ -289,21 +322,18 @@ fn directory_has_one_trackable_file(root: &Path, dir: &Path, ignores: &[Arc<Giti
 }
 
 fn submodule_status(
-    dir_entry: &jwalk::DirEntry<(IndexState, bool)>,
+    dir_entry: &ReadDirEntry,
     index_entry: &DirEntry,
-    read_dir_state: &IndexState,
+    read_dir_state: &ReadWorktreeState,
+    scope: &rayon::Scope,
 ) {
     let name = get_relative_entry_path_name(dir_entry);
     let path = dir_entry.path();
     let sha = index_entry.sha.to_vec();
     let changed_clone = Arc::clone(&read_dir_state.changed_files);
-    read_dir_state
-        .thread_pool
-        .as_ref()
-        .unwrap()
-        .install(move || {
-            submodule_spawned_status(name, path.to_str().unwrap().to_string(), sha, changed_clone)
-        });
+    scope.spawn(move |s|{
+        submodule_spawned_status(name, path.to_str().unwrap().to_string(), sha, changed_clone)
+    });
 }
 
 fn submodule_spawned_status(
@@ -341,19 +371,19 @@ fn submodule_spawned_status(
 }
 
 fn process_tracked_item(
-    dir_entry: &mut jwalk::DirEntry<(IndexState, bool)>,
+    dir_entry: &mut ReadDirEntry,
     index_entry: &DirEntry,
-    stats: &mut Option<DirectoryStat>,
-    read_dir_state: &IndexState,
+    read_dir_state: &ReadWorktreeState,
+    scope: &rayon::Scope,
 ) -> Option<StatusEntry> {
-    if dir_entry.file_type.is_dir() {
+    if dir_entry.is_dir {
         // Be sure and don't walk into submodules from here
-        dir_entry.read_children_path = None;
-        submodule_status(dir_entry, index_entry, read_dir_state);
+        dir_entry.process = false;
+        submodule_status(dir_entry, index_entry, read_dir_state, scope);
         return None;
     }
 
-    if is_modified(dir_entry, index_entry, stats) {
+    if is_modified(dir_entry, index_entry) {
         let name = get_relative_entry_path_name(dir_entry);
         return Some(StatusEntry {
             name,

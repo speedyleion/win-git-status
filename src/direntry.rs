@@ -18,7 +18,7 @@ impl Default for ObjectType {
     }
 }
 
-#[derive(PartialEq, Eq, Debug, Default, Clone)]
+#[derive(PartialEq, Eq, Debug, Default, Clone, PartialOrd, Ord)]
 pub struct FileStat {
     pub mtime: u32,
     pub size: u32,
