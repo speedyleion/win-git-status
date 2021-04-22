@@ -5,7 +5,6 @@
  *          https://www.boost.org/LICENSE_1_0.txt)
  */
 mod direntry;
-mod dirstat;
 mod error;
 mod index;
 mod repo_status;

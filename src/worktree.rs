@@ -9,7 +9,6 @@ use core::cmp::Ordering;
 use pathdiff::diff_paths;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use rayon;
 
 use crate::direntry::{DirEntry, ObjectType, FileStat};
 use crate::error::StatusError;
@@ -26,7 +25,7 @@ pub struct ReadDirEntry {
     pub is_dir: bool,
     pub process: bool,
     pub stat: FileStat,
-    pub parent_path: Arc<PathBuf>,
+    pub parent_path: Arc<Path>,
     pub depth: usize,
 }
 
@@ -46,7 +45,7 @@ struct ReadWorktreeState {
 
 fn read_dir(path: &Path, read_dir_state: &mut ReadWorktreeState, depth: usize, scope: &rayon::Scope) {
     let mut files = vec![];
-    let parent_path = Arc::new(path.to_owned());
+    let parent_path = Arc::from(path);
     for entry in fs::read_dir(path).unwrap() {
         let entry = entry.unwrap();
         let metadata = entry.metadata().unwrap();
@@ -225,14 +224,6 @@ fn process_deleted_item(index_entry: &DirEntry) -> Option<StatusEntry> {
     })
 }
 
-fn is_modified(
-    worktree_file: &mut ReadDirEntry,
-    index_file: &DirEntry,
-) -> bool {
-    let modified = index_file.stat != worktree_file.stat;
-    modified
-}
-
 fn get_relative_entry_path_name(entry: &ReadDirEntry) -> String {
     let path = entry.path();
     let root = path.ancestors().nth(entry.depth).unwrap();
@@ -386,7 +377,7 @@ fn process_tracked_item(
         return None;
     }
 
-    if is_modified(dir_entry, index_entry) {
+    if dir_entry.stat != index_entry.stat {
         let name = get_relative_entry_path_name(dir_entry);
         return Some(StatusEntry {
             name,
