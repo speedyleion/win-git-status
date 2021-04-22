@@ -44,7 +44,7 @@ struct ReadWorktreeState {
     ignores: Vec<Arc<Gitignore>>,
 }
 
-pub fn read_dir(path: &Path, read_dir_state: &mut ReadWorktreeState, depth: usize, scope: &rayon::Scope) {
+fn read_dir(path: &Path, read_dir_state: &mut ReadWorktreeState, depth: usize, scope: &rayon::Scope) {
     let mut files = vec![];
     let parent_path = Arc::new(path.to_owned());
     for entry in fs::read_dir(path).unwrap() {
@@ -168,8 +168,8 @@ fn get_file_deltas(
     let mut index_iter = index_entry.iter();
     let mut worktree_file = worktree_iter.next();
     let mut index_file = index_iter.next();
-    while let Some(wa_file) = worktree_file {
-        let w_file = wa_file;
+    while let Some(w_file) = worktree_file {
+        // let w_file = wa_file;
         match index_file {
             Some(i_file) => match w_file.name.cmp(&i_file.name) {
                 Ordering::Equal => {
@@ -191,6 +191,7 @@ fn get_file_deltas(
                     if let Some(entry) = process_deleted_item(i_file) {
                         file_changes.lock().unwrap().push(entry);
                     }
+                    worktree_file = Some(w_file);
                     index_file = index_iter.next();
                 }
             },
@@ -233,7 +234,7 @@ fn is_modified(
 fn get_relative_entry_path_name(entry: &ReadDirEntry) -> String {
     let path = entry.path();
     let root = path.ancestors().nth(entry.depth).unwrap();
-    let relative_path = diff_paths(path, root).unwrap();
+    let relative_path = diff_paths(entry.path(), root).unwrap();
     relative_path.to_str().unwrap().replace("\\", "/")
 }
 
@@ -331,7 +332,7 @@ fn submodule_status(
     let path = dir_entry.path();
     let sha = index_entry.sha.to_vec();
     let changed_clone = Arc::clone(&read_dir_state.changed_files);
-    scope.spawn(move |s|{
+    scope.spawn(move |_s|{
         submodule_spawned_status(name, path.to_str().unwrap().to_string(), sha, changed_clone)
     });
 }
