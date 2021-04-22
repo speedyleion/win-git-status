@@ -55,7 +55,7 @@ fn read_dir(path: &Path, read_dir_state: &mut ReadWorktreeState, depth: usize, s
             name: entry.file_name().to_str().unwrap().to_string(),
             process: true,
             stat: FileStat {
-                mtime: metadata.modified().unwrap().duration_since(UNIX_EPOCH).unwrap().as_millis() as u32,
+                mtime: metadata.modified().unwrap().duration_since(UNIX_EPOCH).unwrap().as_secs() as u32,
                 size: metadata.len() as u32,
             },
             parent_path: Arc::clone(&parent_path),
