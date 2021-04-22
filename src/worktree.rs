@@ -10,7 +10,7 @@ use pathdiff::diff_paths;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use crate::direntry::{DirEntry, ObjectType, FileStat};
+use crate::direntry::{DirEntry, FileStat, ObjectType};
 use crate::error::StatusError;
 use crate::status::{Status, StatusEntry};
 use crate::Index;
@@ -43,7 +43,12 @@ struct ReadWorktreeState {
     ignores: Vec<Arc<Gitignore>>,
 }
 
-fn read_dir(path: &Path, read_dir_state: &mut ReadWorktreeState, depth: usize, scope: &rayon::Scope) {
+fn read_dir(
+    path: &Path,
+    read_dir_state: &mut ReadWorktreeState,
+    depth: usize,
+    scope: &rayon::Scope,
+) {
     let mut files = vec![];
     let parent_path = Arc::from(path);
     for entry in fs::read_dir(path).unwrap() {
@@ -54,7 +59,12 @@ fn read_dir(path: &Path, read_dir_state: &mut ReadWorktreeState, depth: usize, s
             name: entry.file_name().to_str().unwrap().to_string(),
             process: true,
             stat: FileStat {
-                mtime: metadata.modified().unwrap().duration_since(UNIX_EPOCH).unwrap().as_secs() as u32,
+                mtime: metadata
+                    .modified()
+                    .unwrap()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs() as u32,
                 size: metadata.len() as u32,
             },
             parent_path: Arc::clone(&parent_path),
@@ -63,16 +73,14 @@ fn read_dir(path: &Path, read_dir_state: &mut ReadWorktreeState, depth: usize, s
     }
 
     files = files.into_iter().filter(|f| f.name != ".git").collect();
-    files.sort_by(|a, b|{
-        a.name.cmp(&b.name)
-    });
+    files.sort_by(|a, b| a.name.cmp(&b.name));
     process_directory(path, read_dir_state, &mut files, scope);
 
     let to_process = files.iter().filter(|f| f.is_dir && f.process);
     for dir in to_process {
         let path = path.join(&dir.name);
         let mut read_dir_state = read_dir_state.clone();
-        scope.spawn(move |s|{
+        scope.spawn(move |s| {
             read_dir(&path, &mut read_dir_state, depth + 1, s);
         });
     }
@@ -118,7 +126,7 @@ impl WorkTree {
             ignores: vec![Arc::new(global_ignore)],
         };
 
-        rayon::scope(|s|{
+        rayon::scope(|s| {
             read_dir(path, &mut read_dir_state, 1, s);
         });
     }
@@ -174,8 +182,7 @@ fn get_file_deltas(
         match index_file {
             Some(i_file) => match w_file.name.cmp(&i_file.name) {
                 Ordering::Equal => {
-                    if let Some(entry) =
-                        process_tracked_item(w_file, i_file, read_dir_state, scope)
+                    if let Some(entry) = process_tracked_item(w_file, i_file, read_dir_state, scope)
                     {
                         file_changes.lock().unwrap().push(entry);
                     }
@@ -259,11 +266,7 @@ fn process_new_item(
     })
 }
 
-fn is_ignored(
-    entry: &mut ReadDirEntry,
-    name: &str,
-    ignores: &[Arc<Gitignore>],
-) -> bool {
+fn is_ignored(entry: &mut ReadDirEntry, name: &str, ignores: &[Arc<Gitignore>]) -> bool {
     let is_dir = entry.is_dir;
     for ignore in ignores {
         let matched = ignore.matched_path_or_any_parents(name, is_dir);
@@ -325,7 +328,7 @@ fn submodule_status(
     let path = dir_entry.path();
     let sha = index_entry.sha.to_vec();
     let changed_clone = Arc::clone(&read_dir_state.changed_files);
-    scope.spawn(move |_s|{
+    scope.spawn(move |_s| {
         submodule_spawned_status(name, path.to_str().unwrap().to_string(), sha, changed_clone)
     });
 }
