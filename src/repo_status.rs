@@ -57,8 +57,11 @@ impl RepoStatus {
         let repo_path = repo.path();
         let index_file = repo_path.join("index");
         let index = Index::new(&*index_file)?;
-        let work_tree_diff = WorkTree::diff_against_index(path, index)?;
-        let index_diff = TreeDiff::diff_against_index(path);
+        let workdir = repo.workdir().unwrap();
+        let (work_tree_diff, index_diff) = rayon::join(
+            || WorkTree::diff_against_index(workdir, index).unwrap(),
+            || TreeDiff::diff_against_index(&path),
+        );
         Ok(RepoStatus {
             repo,
             index_diff,

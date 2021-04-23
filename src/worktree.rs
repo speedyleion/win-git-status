@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex};
 use crate::direntry::{DirEntry, FileStat, ObjectType};
 use crate::error::StatusError;
 use crate::status::{Status, StatusEntry};
-use crate::Index;
+use crate::{Index, TreeDiff};
 use git2::Repository;
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use std::fs;
@@ -339,18 +339,22 @@ fn submodule_spawned_status(
     index_sha: Vec<u8>,
     changed_files: Arc<Mutex<Vec<StatusEntry>>>,
 ) {
+    let path = Path::new(&path);
     let repo = Repository::open(&path).unwrap();
-    let statuses = repo.statuses(None).unwrap();
-    let mut modified_content = false;
-    let mut untracked_content = false;
-    for stat in statuses.iter() {
-        if stat.head_to_index().is_some() {
-            modified_content = true
-        }
-        if stat.index_to_workdir().is_some() {
-            untracked_content = true
-        }
-    }
+    let repo_path = repo.path();
+    let index_file = repo_path.join("index");
+    let index = Index::new(&*index_file).unwrap();
+
+    let workdir = repo.workdir().unwrap();
+    let (work_tree_diff, index_diff) = rayon::join(
+        || WorkTree::diff_against_index(workdir, index).unwrap(),
+        || TreeDiff::diff_against_index(&path),
+    );
+
+    // This isn't quite true, but close enough for now
+    let modified_content = !index_diff.entries.is_empty();
+    let untracked_content = !work_tree_diff.entries.is_empty();
+
     let new_commits = index_sha
         != repo
             .head()
