@@ -225,6 +225,7 @@ impl RepoStatus {
             },
         }
         writer.write_all(message.as_bytes()).unwrap();
+        writer.write_all(b"\n\n").unwrap();
     }
 
     fn get_detached_message<W: WriteColor + Write>(&self, writer: &mut W) {
