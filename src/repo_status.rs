@@ -142,7 +142,7 @@ impl RepoStatus {
             }
         };
         let short_name = name.strip_prefix("refs/heads/").unwrap();
-        let message = format!{"On branch {}\n", short_name};
+        let message = format! {"On branch {}\n", short_name};
         writer.write_all(message.as_bytes()).unwrap();
     }
 
@@ -237,7 +237,7 @@ impl RepoStatus {
             .id()
             .to_string();
         let short_sha = &commit_sha[..7];
-        let detached =  formatdoc! {"Head detached at {sha}\n", sha=short_sha};
+        let detached = formatdoc! {"Head detached at {sha}\n", sha=short_sha};
         writer.write_all(detached.as_bytes()).unwrap();
     }
 
@@ -496,7 +496,10 @@ mod tests {
 
         let mut writer = Buffer::no_color();
         status.get_branch_message(&mut writer);
-        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), "On branch tip\n");
+        assert_eq!(
+            String::from_utf8(writer.into_inner()).unwrap(),
+            "On branch tip\n"
+        );
     }
 
     #[test]
@@ -509,7 +512,10 @@ mod tests {
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
         let mut writer = Buffer::no_color();
         status.get_branch_message(&mut writer);
-        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(),"On branch half\n");
+        assert_eq!(
+            String::from_utf8(writer.into_inner()).unwrap(),
+            "On branch half\n"
+        );
     }
 
     #[test]
@@ -525,7 +531,10 @@ mod tests {
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
         let mut writer = Buffer::no_color();
         status.get_branch_message(&mut writer);
-        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), "Head detached at 17fe299\n");
+        assert_eq!(
+            String::from_utf8(writer.into_inner()).unwrap(),
+            "Head detached at 17fe299\n"
+        );
     }
 
     #[test]
@@ -540,7 +549,10 @@ mod tests {
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
         let mut writer = Buffer::no_color();
         status.get_branch_message(&mut writer);
-        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), "Head detached at 82578fa\n");
+        assert_eq!(
+            String::from_utf8(writer.into_inner()).unwrap(),
+            "Head detached at 82578fa\n"
+        );
     }
 
     #[test]
@@ -550,7 +562,10 @@ mod tests {
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
         let mut writer = Buffer::no_color();
         status.get_remote_branch_difference_message(&mut writer);
-        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), "Your branch is up to date with 'origin/tip'.");
+        assert_eq!(
+            String::from_utf8(writer.into_inner()).unwrap(),
+            "Your branch is up to date with 'origin/tip'."
+        );
     }
 
     #[test]
@@ -563,7 +578,10 @@ mod tests {
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
         let mut writer = Buffer::no_color();
         status.get_remote_branch_difference_message(&mut writer);
-        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), "Your branch is up to date with 'origin/half'.");
+        assert_eq!(
+            String::from_utf8(writer.into_inner()).unwrap(),
+            "Your branch is up to date with 'origin/half'."
+        );
     }
 
     #[test]
@@ -912,10 +930,7 @@ mod tests {
 
     #[test]
     fn test_staged_epilog() {
-        assert_eq!(
-            RepoStatus::get_epilog(true, false, false),
-            None
-        );
+        assert_eq!(RepoStatus::get_epilog(true, false, false), None);
     }
 
     #[test]
@@ -935,10 +950,7 @@ mod tests {
 
     #[test]
     fn test_staged_overrides_unstaged_epilog() {
-        assert_eq!(
-            RepoStatus::get_epilog(true, true, false),
-            None
-        );
+        assert_eq!(RepoStatus::get_epilog(true, true, false), None);
     }
 
     #[test]
