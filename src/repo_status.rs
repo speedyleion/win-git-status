@@ -496,7 +496,7 @@ mod tests {
 
         let mut writer = Buffer::no_color();
         status.get_branch_message(&mut writer);
-        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), "On branch tip");
+        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), "On branch tip\n");
     }
 
     #[test]
@@ -509,7 +509,7 @@ mod tests {
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
         let mut writer = Buffer::no_color();
         status.get_branch_message(&mut writer);
-        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(),"On branch half");
+        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(),"On branch half\n");
     }
 
     #[test]
@@ -525,7 +525,7 @@ mod tests {
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
         let mut writer = Buffer::no_color();
         status.get_branch_message(&mut writer);
-        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), "Head detached at 17fe299");
+        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), "Head detached at 17fe299\n");
     }
 
     #[test]
@@ -540,7 +540,7 @@ mod tests {
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
         let mut writer = Buffer::no_color();
         status.get_branch_message(&mut writer);
-        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), "Head detached at 82578fa");
+        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), "Head detached at 82578fa\n");
     }
 
     #[test]
