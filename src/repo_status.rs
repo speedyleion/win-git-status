@@ -682,10 +682,12 @@ mod tests {
             Changes not staged for commit:
               (use \"git add <file>...\" to update what will be committed)
               (use \"git restore <file>...\" to discard changes in working directory)
-                    modified:   three"};
+                    modified:   three
+
+            "};
 
         let mut writer = Buffer::no_color();
-        assert_eq!(status.get_unstaged_message(&mut writer), false);
+        assert_eq!(status.get_unstaged_message(&mut writer), true);
         assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), expected);
     }
 
@@ -706,9 +708,11 @@ mod tests {
               (use \"git add <file>...\" to update what will be committed)
               (use \"git restore <file>...\" to discard changes in working directory)
                     modified:   four
-                    modified:   one/nested/a/bit.txt"};
+                    modified:   one/nested/a/bit.txt
+
+            "};
         let mut writer = Buffer::no_color();
-        assert_eq!(status.get_unstaged_message(&mut writer), false);
+        assert_eq!(status.get_unstaged_message(&mut writer), true);
         assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), expected);
     }
 
@@ -736,7 +740,9 @@ mod tests {
               (use \"git restore <file>...\" to discard changes in working directory)
                     modified:   one
                     deleted:    three
-                    modified:   two"};
+                    modified:   two
+
+            "};
 
         let mut writer = Buffer::no_color();
         assert_eq!(status.get_unstaged_message(&mut writer), true);
@@ -831,7 +837,9 @@ mod tests {
         let expected = indoc! {"\
             Untracked files:
               (use \"git add <file>...\" to include in what will be committed)
-                    some_new_file"};
+                    some_new_file
+
+            "};
 
         let mut writer = Buffer::no_color();
         assert_eq!(status.get_untracked_message(&mut writer), true);
@@ -858,7 +866,9 @@ mod tests {
             Untracked files:
               (use \"git add <file>...\" to include in what will be committed)
                     a_new_file
-                    b/"};
+                    b/
+
+            "};
 
         let mut writer = Buffer::no_color();
         assert_eq!(status.get_untracked_message(&mut writer), true);
