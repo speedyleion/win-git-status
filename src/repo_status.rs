@@ -117,9 +117,9 @@ impl RepoStatus {
         let branch = self.get_branch_message();
         let remote_state = self.get_remote_branch_difference_message();
         let staged = self.get_staged_message();
-        let unstaged = self.get_unstaged_message();
+        let unstaged = self.get_unstaged_message(&mut writer);
         let untracked = self.get_untracked_message(&mut writer);
-        let epilog = RepoStatus::get_epilog(&staged, &unstaged, untracked);
+        let epilog = RepoStatus::get_epilog(&staged, unstaged, untracked);
 
         let branch_state = match remote_state {
             None => branch,
@@ -127,7 +127,7 @@ impl RepoStatus {
         };
         let mut message = vec![branch_state];
 
-        for block in &[&staged, &unstaged, &epilog] {
+        for block in &[&staged, &epilog] {
             match block {
                 Some(b) => message.push(b.to_string()),
                 None => (),
@@ -237,7 +237,7 @@ impl RepoStatus {
             sha=short_sha
         }
     }
-    fn get_unstaged_message(&self) -> Option<String> {
+    fn get_unstaged_message<W: WriteColor + Write>(&self, writer: &mut W) -> bool {
         let unstaged_files: Vec<String> = self
             .work_tree_diff
             .entries
@@ -246,7 +246,7 @@ impl RepoStatus {
             .map(|e| e.to_string())
             .collect();
         if unstaged_files.is_empty() {
-            return None;
+            return false;
         }
         let files = unstaged_files
             .iter()
@@ -257,9 +257,18 @@ impl RepoStatus {
             Changes not staged for commit:
               (use \"git add <file>...\" to update what will be committed)
               (use \"git restore <file>...\" to discard changes in working directory)
-                    {files}",
-        files=files};
-        Some(message)
+                    "};
+
+        writer.write(message.as_bytes()).unwrap();
+
+        let mut color_spec = ColorSpec::new();
+        color_spec.set_fg(Some(self.get_color(StatusColorSlot::Changed)));
+        writer.set_color(&color_spec).unwrap();
+        writer.write(files.as_bytes()).unwrap();
+        writer.reset().unwrap();
+
+        writer.write(b"\n\n").unwrap();
+        true
     }
 
     fn get_staged_message(&self) -> Option<String> {
@@ -312,21 +321,24 @@ impl RepoStatus {
                     "};
         writer.write(message.as_bytes()).unwrap();
 
-        writer.set_color(ColorSpec::new().set_fg(Some(Color::Green))).unwrap();
+        let mut color_spec = ColorSpec::new();
+        color_spec.set_fg(Some(self.get_color(StatusColorSlot::Untracked)));
+        writer.set_color(&color_spec).unwrap();
         writer.write(files.as_bytes()).unwrap();
-        writer.reset();
+        writer.reset().unwrap();
+        writer.write(b"\n\n").unwrap();
         true
     }
 
     fn get_epilog(
         staged: &Option<String>,
-        unstaged: &Option<String>,
+        unstaged: bool,
         untracked: bool,
     ) -> Option<String> {
         if staged != &None {
             return None;
         }
-        if unstaged != &None {
+        if unstaged {
             return Some(
                 "no changes added to commit (use \"git add\" and/or \"git commit -a\")".to_string(),
             );
@@ -649,8 +661,10 @@ mod tests {
         let repo = test_repo(temp_dir.to_str().unwrap(), &files);
 
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
-        let message = status.get_unstaged_message();
-        assert_eq!(message, None);
+
+        let mut writer = Buffer::no_color();
+        assert_eq!(status.get_unstaged_message(&mut writer), false);
+        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), "");
     }
 
     #[test]
@@ -663,14 +677,16 @@ mod tests {
         write_to_file(&repo, files[2], "what???");
 
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
-        let message = status.get_unstaged_message();
 
         let expected = indoc! {"\
             Changes not staged for commit:
               (use \"git add <file>...\" to update what will be committed)
               (use \"git restore <file>...\" to discard changes in working directory)
                     modified:   three"};
-        assert_eq!(message, Some(expected.to_string()));
+
+        let mut writer = Buffer::no_color();
+        assert_eq!(status.get_unstaged_message(&mut writer), false);
+        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), expected);
     }
 
     #[test]
@@ -684,7 +700,6 @@ mod tests {
         write_to_file(&repo, files[3], "what???");
 
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
-        let message = status.get_unstaged_message();
 
         let expected = indoc! {"\
             Changes not staged for commit:
@@ -692,7 +707,9 @@ mod tests {
               (use \"git restore <file>...\" to discard changes in working directory)
                     modified:   four
                     modified:   one/nested/a/bit.txt"};
-        assert_eq!(message, Some(expected.to_string()));
+        let mut writer = Buffer::no_color();
+        assert_eq!(status.get_unstaged_message(&mut writer), false);
+        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), expected);
     }
 
     #[test]
@@ -712,7 +729,6 @@ mod tests {
         write_to_file(&repo, Path::new("an_untracked_file"), "stuff");
 
         let status = RepoStatus::new(workdir).unwrap();
-        let message = status.get_unstaged_message();
 
         let expected = indoc! {"\
             Changes not staged for commit:
@@ -721,7 +737,10 @@ mod tests {
                     modified:   one
                     deleted:    three
                     modified:   two"};
-        assert_eq!(message, Some(expected.to_string()));
+
+        let mut writer = Buffer::no_color();
+        assert_eq!(status.get_unstaged_message(&mut writer), true);
+        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), expected);
     }
 
     #[test]
@@ -849,7 +868,7 @@ mod tests {
     #[test]
     fn test_no_change_epilog() {
         let expected = "nothing to commit, working tree clean".to_string();
-        assert_eq!(RepoStatus::get_epilog(&None, &None, false), Some(expected));
+        assert_eq!(RepoStatus::get_epilog(&None, false, false), Some(expected));
     }
 
     #[test]
@@ -857,7 +876,7 @@ mod tests {
         let expected =
             "no changes added to commit (use \"git add\" and/or \"git commit -a\")".to_string();
         assert_eq!(
-            RepoStatus::get_epilog(&None, &Some("sure".to_string()), false),
+            RepoStatus::get_epilog(&None, true, false),
             Some(expected)
         );
     }
@@ -865,7 +884,7 @@ mod tests {
     #[test]
     fn test_staged_epilog() {
         assert_eq!(
-            RepoStatus::get_epilog(&Some("what".to_string()), &None, false),
+            RepoStatus::get_epilog(&Some("what".to_string()), false, false),
             None
         );
     }
@@ -876,7 +895,7 @@ mod tests {
             "nothing added to commit but untracked files present (use \"git add\" to track)"
                 .to_string();
         assert_eq!(
-            RepoStatus::get_epilog(&None, &None, true),
+            RepoStatus::get_epilog(&None, false, true),
             Some(expected)
         );
     }
@@ -886,7 +905,7 @@ mod tests {
         let expected =
             "no changes added to commit (use \"git add\" and/or \"git commit -a\")".to_string();
         assert_eq!(
-            RepoStatus::get_epilog(&None, &Some("sure".to_string()), true),
+            RepoStatus::get_epilog(&None, true, true),
             Some(expected)
         );
     }
@@ -894,7 +913,7 @@ mod tests {
     #[test]
     fn test_staged_overrides_unstaged_epilog() {
         assert_eq!(
-            RepoStatus::get_epilog(&Some("what".to_string()), &Some("why".to_string()), false),
+            RepoStatus::get_epilog(&Some("what".to_string()), true, false),
             None
         );
     }
