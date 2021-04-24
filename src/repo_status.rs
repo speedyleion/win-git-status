@@ -19,18 +19,28 @@ use termcolor::Color;
 enum StatusColorSlot {
     Untracked,
     Changed,
+    Added,
 }
-
 
 impl fmt::Display for StatusColorSlot {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
+        match self {
             StatusColorSlot::Untracked => write!(f, "untracked"),
             StatusColorSlot::Changed => write!(f, "changed"),
+            StatusColorSlot::Added => write!(f, "added"),
         }
     }
 }
 
+impl StatusColorSlot {
+    pub fn default_color(&self) -> Color {
+        match self {
+            StatusColorSlot::Untracked => Color::Red,
+            StatusColorSlot::Changed => Color::Red,
+            StatusColorSlot::Added => Color::Green,
+        }
+    }
+}
 pub struct RepoStatus {
     repo: Repository,
     index_diff: TreeDiff,
@@ -45,9 +55,9 @@ impl RepoStatus {
         match color {
             Ok(color) => match color.parse() {
                 Ok(color) => color,
-                Err(_) => Color::Red,
+                Err(_) => color_slot.default_color(),
             }
-            Err(_) => Color::Red,
+            Err(_) => color_slot.default_color(),
         }
     }
 }
@@ -881,8 +891,6 @@ mod tests {
         let temp_dir = TempDir::default();
         let repo = test_repo(temp_dir.to_str().unwrap(), &files);
 
-        write_to_file(&repo, Path::new("some_new_file"), "stuff");
-
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
         let color = status.get_color(StatusColorSlot::Untracked);
 
@@ -890,17 +898,17 @@ mod tests {
     }
 
     #[test]
-    fn test_overriden_untracked_color() {
+    fn test_overridden_untracked_color() {
         let file_names = vec!["one", "two", "three", "four"];
         let files = file_names.iter().map(|n| Path::new(n)).collect();
         let temp_dir = TempDir::default();
         let repo = test_repo(temp_dir.to_str().unwrap(), &files);
+
         let mut config = repo.config().unwrap();
         config.set_str("color.status.untracked", "white").unwrap();
 
-        write_to_file(&repo, Path::new("some_new_file"), "stuff");
-
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
+
         let color = status.get_color(StatusColorSlot::Untracked);
 
         assert_eq!(color, Color::White);
@@ -923,7 +931,7 @@ mod tests {
     }
 
     #[test]
-    fn test_configured_changed_file_color() {
+    fn test_overridden_changed_file_color() {
         let file_names = vec!["one", "two", "three", "four"];
         let files = file_names.iter().map(|n| Path::new(n)).collect();
         let temp_dir = TempDir::default();
@@ -932,12 +940,41 @@ mod tests {
         let mut config = repo.config().unwrap();
         config.set_str("color.status.changed", "blue").unwrap();
 
-        write_to_file(&repo, files[2], "what???");
-
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
 
         let color = status.get_color(StatusColorSlot::Changed);
 
         assert_eq!(color, Color::Blue);
+    }
+
+    #[test]
+    fn test_default_added_file_color() {
+        let file_names = vec!["one", "two", "three", "four"];
+        let files = file_names.iter().map(|n| Path::new(n)).collect();
+        let temp_dir = TempDir::default();
+        let repo = test_repo(temp_dir.to_str().unwrap(), &files);
+
+        let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
+
+        let color = status.get_color(StatusColorSlot::Added);
+
+        assert_eq!(color, Color::Green);
+    }
+
+    #[test]
+    fn test_overridden_added_file_color() {
+        let file_names = vec!["one", "two", "three", "four"];
+        let files = file_names.iter().map(|n| Path::new(n)).collect();
+        let temp_dir = TempDir::default();
+        let repo = test_repo(temp_dir.to_str().unwrap(), &files);
+
+        let mut config = repo.config().unwrap();
+        config.set_str("color.status.added", "yellow").unwrap();
+
+        let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
+
+        let color = status.get_color(StatusColorSlot::Added);
+
+        assert_eq!(color, Color::Yellow);
     }
 }
