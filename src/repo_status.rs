@@ -114,18 +114,14 @@ impl RepoStatus {
 
     pub fn message(&self) -> Result<String, StatusError> {
         let mut writer = StandardStream::stdout(ColorChoice::Auto);
-        let branch = self.get_branch_message();
-        let remote_state = self.get_remote_branch_difference_message();
+        self.get_branch_message(&mut writer);
+        self.get_remote_branch_difference_message(&mut writer);
         let staged = self.get_staged_message(&mut writer);
         let unstaged = self.get_unstaged_message(&mut writer);
         let untracked = self.get_untracked_message(&mut writer);
         let epilog = RepoStatus::get_epilog(staged, unstaged, untracked);
 
-        let branch_state = match remote_state {
-            None => branch,
-            Some(state) => format!("{}\n{}", branch, state),
-        };
-        let mut message = vec![branch_state];
+        let mut message = vec![];
 
         for block in &[&epilog] {
             match block {
@@ -137,14 +133,17 @@ impl RepoStatus {
         Ok(message.join("\n\n"))
     }
 
-    pub fn get_branch_message(&self) -> String {
+    fn get_branch_message<W: WriteColor + Write>(&self, writer: &mut W) {
         let name = match self.branch_name() {
             Some(name) => name,
-            None => return self.get_detached_message(),
+            None => {
+                self.get_detached_message(writer);
+                return;
+            }
         };
         let short_name = name.strip_prefix("refs/heads/").unwrap();
-        let message = "On branch ".to_string();
-        message + short_name
+        let message = format!{"On branch {}\n", short_name};
+        writer.write_all(message.as_bytes()).unwrap();
     }
 
     fn branch_name(&self) -> Option<String> {
@@ -157,9 +156,14 @@ impl RepoStatus {
         }
     }
 
-    fn get_remote_branch_difference_message(&self) -> Option<String> {
-        let name = match self.repo.branch_upstream_name(&self.branch_name().unwrap()) {
-            Err(_e) => return None,
+    fn get_remote_branch_difference_message<W: WriteColor + Write>(&self, writer: &mut W) {
+        let branch_name = self.branch_name();
+        let branch_name = match branch_name {
+            Some(name) => name,
+            None => return,
+        };
+        let name = match self.repo.branch_upstream_name(&branch_name) {
+            Err(_e) => return,
             Ok(name) => name,
         };
         let short_name = name
@@ -220,9 +224,10 @@ impl RepoStatus {
                 }
             },
         }
-        Some(message)
+        writer.write_all(message.as_bytes()).unwrap();
     }
-    fn get_detached_message(&self) -> String {
+
+    fn get_detached_message<W: WriteColor + Write>(&self, writer: &mut W) {
         let commit_sha = self
             .repo
             .head()
@@ -232,11 +237,10 @@ impl RepoStatus {
             .id()
             .to_string();
         let short_sha = &commit_sha[..7];
-        formatdoc! {
-            "Head detached at {sha}",
-            sha=short_sha
-        }
+        let detached =  formatdoc! {"Head detached at {sha}\n", sha=short_sha};
+        writer.write_all(detached.as_bytes()).unwrap();
     }
+
     fn get_unstaged_message<W: WriteColor + Write>(&self, writer: &mut W) -> bool {
         let unstaged_files: Vec<String> = self
             .work_tree_diff
@@ -489,8 +493,10 @@ mod tests {
         repo.set_head("refs/heads/tip").unwrap();
 
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
-        let message = status.get_branch_message();
-        assert_eq!(message, "On branch tip");
+
+        let mut writer = Buffer::no_color();
+        status.get_branch_message(&mut writer);
+        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), "On branch tip");
     }
 
     #[test]
@@ -501,8 +507,9 @@ mod tests {
         repo.set_head("refs/heads/half").unwrap();
 
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
-        let message = status.get_branch_message();
-        assert_eq!(message, "On branch half");
+        let mut writer = Buffer::no_color();
+        status.get_branch_message(&mut writer);
+        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(),"On branch half");
     }
 
     #[test]
@@ -516,8 +523,9 @@ mod tests {
         repo.set_head_detached(parent).unwrap();
 
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
-        let message = status.get_branch_message();
-        assert_eq!(message, "Head detached at 17fe299");
+        let mut writer = Buffer::no_color();
+        status.get_branch_message(&mut writer);
+        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), "Head detached at 17fe299");
     }
 
     #[test]
@@ -530,8 +538,9 @@ mod tests {
         repo.set_head_detached(head.id()).unwrap();
 
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
-        let message = status.get_branch_message();
-        assert_eq!(message, "Head detached at 82578fa");
+        let mut writer = Buffer::no_color();
+        status.get_branch_message(&mut writer);
+        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), "Head detached at 82578fa");
     }
 
     #[test]
@@ -539,11 +548,9 @@ mod tests {
         let temp_dir = TempDir::default();
         let repo = test_repo(temp_dir.to_str().unwrap(), &vec![Path::new("what")]);
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
-        let message = status.get_remote_branch_difference_message();
-        assert_eq!(
-            message,
-            Some("Your branch is up to date with 'origin/tip'.".to_string())
-        );
+        let mut writer = Buffer::no_color();
+        status.get_remote_branch_difference_message(&mut writer);
+        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), "Your branch is up to date with 'origin/tip'.");
     }
 
     #[test]
@@ -554,11 +561,9 @@ mod tests {
         repo.set_head("refs/heads/half").unwrap();
 
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
-        let message = status.get_remote_branch_difference_message();
-        assert_eq!(
-            message,
-            Some("Your branch is up to date with 'origin/half'.".to_string())
-        );
+        let mut writer = Buffer::no_color();
+        status.get_remote_branch_difference_message(&mut writer);
+        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), "Your branch is up to date with 'origin/half'.");
     }
 
     #[test]
@@ -573,11 +578,12 @@ mod tests {
         branch.set_upstream(Some("origin/tip")).unwrap();
 
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
-        let message = status.get_remote_branch_difference_message();
+        let mut writer = Buffer::no_color();
+        status.get_remote_branch_difference_message(&mut writer);
         let expected = indoc! {"\
             Your branch is behind 'origin/tip' by 2 commits, and can be fast-forwarded.
               (use \"git pull\" to update your local branch)"};
-        assert_eq!(message, Some(expected.to_string()));
+        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), expected);
     }
 
     #[test]
@@ -592,11 +598,12 @@ mod tests {
         branch.set_upstream(Some("origin/half")).unwrap();
 
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
-        let message = status.get_remote_branch_difference_message();
         let expected = indoc! {"\
             Your branch is ahead of 'origin/half' by 1 commit.
               (use \"git push\" to publish your local commits)"};
-        assert_eq!(message, Some(expected.to_string()));
+        let mut writer = Buffer::no_color();
+        status.get_remote_branch_difference_message(&mut writer);
+        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), expected);
     }
 
     #[test]
@@ -611,11 +618,12 @@ mod tests {
         branch.set_upstream(Some("origin/half")).unwrap();
 
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
-        let message = status.get_remote_branch_difference_message();
         let expected = indoc! {"\
             Your branch is ahead of 'origin/half' by 3 commits.
               (use \"git push\" to publish your local commits)"};
-        assert_eq!(message, Some(expected.to_string()));
+        let mut writer = Buffer::no_color();
+        status.get_remote_branch_difference_message(&mut writer);
+        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), expected);
     }
 
     #[test]
@@ -635,12 +643,13 @@ mod tests {
         }
 
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
-        let message = status.get_remote_branch_difference_message();
         let expected = indoc! {"\
             Your branch and 'origin/tip' have diverged,
             and have 3 and 2 different commits each, respectively.
               (use \"git pull\" to merge the remote branch into yours)"};
-        assert_eq!(message, Some(expected.to_string()));
+        let mut writer = Buffer::no_color();
+        status.get_remote_branch_difference_message(&mut writer);
+        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), expected);
     }
 
     #[test]
@@ -653,8 +662,9 @@ mod tests {
         repo.set_head("refs/heads/a_new_branch").unwrap();
 
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
-        let message = status.get_remote_branch_difference_message();
-        assert_eq!(message, None);
+        let mut writer = Buffer::no_color();
+        status.get_remote_branch_difference_message(&mut writer);
+        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), "");
     }
 
     #[test]
