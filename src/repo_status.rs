@@ -563,10 +563,11 @@ mod tests {
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
         let mut writer = Buffer::no_color();
         status.get_remote_branch_difference_message(&mut writer);
-        assert_eq!(
-            String::from_utf8(writer.into_inner()).unwrap(),
-            "Your branch is up to date with 'origin/tip'."
-        );
+        let expected = indoc! {"\
+            Your branch is up to date with 'origin/tip'.
+
+            "};
+        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), expected);
     }
 
     #[test]
@@ -579,10 +580,11 @@ mod tests {
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
         let mut writer = Buffer::no_color();
         status.get_remote_branch_difference_message(&mut writer);
-        assert_eq!(
-            String::from_utf8(writer.into_inner()).unwrap(),
-            "Your branch is up to date with 'origin/half'."
-        );
+        let expected = indoc! {"\
+            Your branch is up to date with 'origin/half'.
+
+            "};
+        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), expected);
     }
 
     #[test]
@@ -601,7 +603,9 @@ mod tests {
         status.get_remote_branch_difference_message(&mut writer);
         let expected = indoc! {"\
             Your branch is behind 'origin/tip' by 2 commits, and can be fast-forwarded.
-              (use \"git pull\" to update your local branch)"};
+              (use \"git pull\" to update your local branch)
+
+            "};
         assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), expected);
     }
 
@@ -619,7 +623,9 @@ mod tests {
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
         let expected = indoc! {"\
             Your branch is ahead of 'origin/half' by 1 commit.
-              (use \"git push\" to publish your local commits)"};
+              (use \"git push\" to publish your local commits)
+
+            "};
         let mut writer = Buffer::no_color();
         status.get_remote_branch_difference_message(&mut writer);
         assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), expected);
@@ -639,7 +645,9 @@ mod tests {
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
         let expected = indoc! {"\
             Your branch is ahead of 'origin/half' by 3 commits.
-              (use \"git push\" to publish your local commits)"};
+              (use \"git push\" to publish your local commits)
+
+            "};
         let mut writer = Buffer::no_color();
         status.get_remote_branch_difference_message(&mut writer);
         assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), expected);
@@ -665,7 +673,9 @@ mod tests {
         let expected = indoc! {"\
             Your branch and 'origin/tip' have diverged,
             and have 3 and 2 different commits each, respectively.
-              (use \"git pull\" to merge the remote branch into yours)"};
+              (use \"git pull\" to merge the remote branch into yours)
+
+            "};
         let mut writer = Buffer::no_color();
         status.get_remote_branch_difference_message(&mut writer);
         assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), expected);
