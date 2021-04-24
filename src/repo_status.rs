@@ -8,13 +8,13 @@
 use crate::error::StatusError;
 use crate::status::Status;
 use crate::{Index, TreeDiff, WorkTree};
-use git2::Repository;
+use git2::{Repository, RepositoryState};
 use indoc::formatdoc;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::io::Write;
 use std::path::Path;
-use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
+use termcolor::{Color, ColorSpec, WriteColor};
 
 // See for the list of slots https://git-scm.com/docs/git-config#Documentation/git-config.txt-colorstatusltslotgt
 enum StatusColorSlot {
@@ -45,25 +45,11 @@ impl StatusColorSlot {
         }
     }
 }
+
 pub struct RepoStatus {
     repo: Repository,
     index_diff: TreeDiff,
     work_tree_diff: WorkTree,
-}
-
-impl RepoStatus {
-    fn get_color(&self, color_slot: StatusColorSlot) -> Color {
-        let config = self.repo.config().unwrap();
-        let config_string = format!("color.status.{}", color_slot);
-        let color = config.get_string(&config_string);
-        match color {
-            Ok(color) => match color.parse() {
-                Ok(color) => color,
-                Err(_) => color_slot.default_color(),
-            },
-            Err(_) => color_slot.default_color(),
-        }
-    }
 }
 
 impl Debug for RepoStatus {
@@ -115,38 +101,48 @@ impl RepoStatus {
         })
     }
 
-    pub fn message(&self) -> Result<String, StatusError> {
-        let mut writer = StandardStream::stdout(ColorChoice::Auto);
-        self.get_branch_message(&mut writer);
-        self.get_remote_branch_difference_message(&mut writer);
-        let staged = self.get_staged_message(&mut writer);
-        let unstaged = self.get_unstaged_message(&mut writer);
-        let untracked = self.get_untracked_message(&mut writer);
-        let epilog = RepoStatus::get_epilog(staged, unstaged, untracked);
-
-        let mut message = vec![];
-
-        for block in &[&epilog] {
-            match block {
-                Some(b) => message.push(b.to_string()),
-                None => (),
-            };
-        }
-
-        Ok(message.join("\n\n"))
+    pub fn write_long_message<W: WriteColor + Write>(
+        &self,
+        writer: &mut W,
+    ) -> Result<(), StatusError> {
+        self.check_repo_state()?;
+        self.write_branch_message(writer)?;
+        self.write_remote_branch_difference_message(writer);
+        let staged = self.write_staged_message(writer);
+        let unstaged = self.write_unstaged_message(writer);
+        let untracked = self.write_untracked_message(writer);
+        RepoStatus::write_epilog(writer, staged, unstaged, untracked);
+        Ok(())
     }
 
-    fn get_branch_message<W: WriteColor + Write>(&self, writer: &mut W) {
+    fn get_color(&self, color_slot: StatusColorSlot) -> Color {
+        let config = self.repo.config().unwrap();
+        let config_string = format!("color.status.{}", color_slot);
+        let color = config.get_string(&config_string);
+        match color {
+            Ok(color) => match color.parse() {
+                Ok(color) => color,
+                Err(_) => color_slot.default_color(),
+            },
+            Err(_) => color_slot.default_color(),
+        }
+    }
+
+    fn write_branch_message<W: WriteColor + Write>(
+        &self,
+        writer: &mut W,
+    ) -> Result<(), StatusError> {
         let name = match self.branch_name() {
             Some(name) => name,
             None => {
                 self.get_detached_message(writer);
-                return;
+                return Ok(());
             }
         };
         let short_name = name.strip_prefix("refs/heads/").unwrap();
         let message = format! {"On branch {}\n", short_name};
-        writer.write_all(message.as_bytes()).unwrap();
+        writer.write_all(message.as_bytes())?;
+        Ok(())
     }
 
     fn branch_name(&self) -> Option<String> {
@@ -159,7 +155,7 @@ impl RepoStatus {
         }
     }
 
-    fn get_remote_branch_difference_message<W: WriteColor + Write>(&self, writer: &mut W) {
+    fn write_remote_branch_difference_message<W: WriteColor + Write>(&self, writer: &mut W) {
         let branch_name = self.branch_name();
         let branch_name = match branch_name {
             Some(name) => name,
@@ -250,7 +246,7 @@ impl RepoStatus {
         writer.write_all(b"\n").unwrap();
     }
 
-    fn get_unstaged_message<W: WriteColor + Write>(&self, writer: &mut W) -> bool {
+    fn write_unstaged_message<W: WriteColor + Write>(&self, writer: &mut W) -> bool {
         let unstaged_files: Vec<String> = self
             .work_tree_diff
             .entries
@@ -284,7 +280,7 @@ impl RepoStatus {
         true
     }
 
-    fn get_staged_message<W: WriteColor + Write>(&self, writer: &mut W) -> bool {
+    fn write_staged_message<W: WriteColor + Write>(&self, writer: &mut W) -> bool {
         let staged_files: Vec<String> = self
             .index_diff
             .entries
@@ -317,7 +313,7 @@ impl RepoStatus {
         true
     }
 
-    fn get_untracked_message<W: WriteColor + Write>(&self, writer: &mut W) -> bool {
+    fn write_untracked_message<W: WriteColor + Write>(&self, writer: &mut W) -> bool {
         let untracked_files: Vec<String> = self
             .work_tree_diff
             .entries
@@ -351,22 +347,54 @@ impl RepoStatus {
         true
     }
 
-    fn get_epilog(staged: bool, unstaged: bool, untracked: bool) -> Option<String> {
+    fn write_epilog<W: WriteColor + Write>(
+        writer: &mut W,
+        staged: bool,
+        unstaged: bool,
+        untracked: bool,
+    ) {
         if staged {
-            return None;
+            return;
         }
         if unstaged {
-            return Some(
-                "no changes added to commit (use \"git add\" and/or \"git commit -a\")".to_string(),
-            );
+            writer
+                .write_all(
+                    b"no changes added to commit (use \"git add\" and/or \"git commit -a\")\n",
+                )
+                .unwrap();
+            return;
         }
         if untracked {
-            return Some(
-                "nothing added to commit but untracked files present (use \"git add\" to track)"
-                    .to_string(),
-            );
+            writer.write_all(b"nothing added to commit but untracked files present (use \"git add\" to track)\n").unwrap();
+            return;
         }
-        Some("nothing to commit, working tree clean".to_string())
+        writer
+            .write_all(b"nothing to commit, working tree clean\n")
+            .unwrap();
+    }
+
+    fn check_repo_state(&self) -> Result<(), StatusError> {
+        let state = self.repo.state();
+        let unsupported_state = match state {
+            RepositoryState::Clean => return Ok(()),
+            RepositoryState::Merge => "Merge",
+            RepositoryState::Revert => "Revert",
+            RepositoryState::RevertSequence => "RevertSequence",
+            RepositoryState::CherryPick => "CherryPick",
+            RepositoryState::CherryPickSequence => "CherryPickSequence",
+            RepositoryState::Bisect => "Bisect",
+            RepositoryState::Rebase => "Rebase",
+            RepositoryState::RebaseInteractive => "RebaseInteractive",
+            RepositoryState::RebaseMerge => "RebaseMerge",
+            RepositoryState::ApplyMailbox => "ApplyMailbox",
+            RepositoryState::ApplyMailboxOrRebase => "ApplyMailboxOrRebase",
+        };
+        Err(StatusError {
+            message: format!(
+                "A repository in {} state is currently unsupported",
+                unsupported_state
+            ),
+        })
     }
 }
 
@@ -495,7 +523,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_branch_message_normal() {
+    fn test_branch_message_normal() {
         let temp_dir = TempDir::default();
         let repo = test_repo(temp_dir.to_str().unwrap(), &vec![Path::new("a_file")]);
 
@@ -504,7 +532,7 @@ mod tests {
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
 
         let mut writer = Buffer::no_color();
-        status.get_branch_message(&mut writer);
+        status.write_branch_message(&mut writer).unwrap();
         assert_eq!(
             String::from_utf8(writer.into_inner()).unwrap(),
             "On branch tip\n"
@@ -512,7 +540,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_branch_message_different_branch() {
+    fn test_branch_message_different_branch() {
         let temp_dir = TempDir::default();
         let repo = test_repo(temp_dir.to_str().unwrap(), &vec![Path::new("i_guess")]);
 
@@ -520,7 +548,7 @@ mod tests {
 
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
         let mut writer = Buffer::no_color();
-        status.get_branch_message(&mut writer);
+        status.write_branch_message(&mut writer).unwrap();
         assert_eq!(
             String::from_utf8(writer.into_inner()).unwrap(),
             "On branch half\n"
@@ -528,7 +556,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_branch_message_detached_parent() {
+    fn test_branch_message_detached_parent() {
         let file_names = vec!["one", "two", "three", "four"];
         let files = file_names.iter().map(|n| Path::new(n)).collect();
         let temp_dir = TempDir::default();
@@ -539,7 +567,7 @@ mod tests {
 
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
         let mut writer = Buffer::no_color();
-        status.get_branch_message(&mut writer);
+        status.write_branch_message(&mut writer).unwrap();
         assert_eq!(
             String::from_utf8(writer.into_inner()).unwrap(),
             "Head detached at 17fe299\n"
@@ -547,7 +575,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_branch_message_detached_tip() {
+    fn test_branch_message_detached_tip() {
         let file_names = vec!["one", "two", "three", "four"];
         let files = file_names.iter().map(|n| Path::new(n)).collect();
         let temp_dir = TempDir::default();
@@ -557,7 +585,7 @@ mod tests {
 
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
         let mut writer = Buffer::no_color();
-        status.get_branch_message(&mut writer);
+        status.write_branch_message(&mut writer).unwrap();
         assert_eq!(
             String::from_utf8(writer.into_inner()).unwrap(),
             "Head detached at 82578fa\n"
@@ -565,12 +593,12 @@ mod tests {
     }
 
     #[test]
-    fn test_get_remote_branch_difference_same_spot() {
+    fn test_remote_branch_difference_same_spot() {
         let temp_dir = TempDir::default();
         let repo = test_repo(temp_dir.to_str().unwrap(), &vec![Path::new("what")]);
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
         let mut writer = Buffer::no_color();
-        status.get_remote_branch_difference_message(&mut writer);
+        status.write_remote_branch_difference_message(&mut writer);
         let expected = indoc! {"\
             Your branch is up to date with 'origin/tip'.
 
@@ -579,7 +607,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_remote_branch_different_remote_name_same_spot() {
+    fn test_remote_branch_different_remote_name_same_spot() {
         let temp_dir = TempDir::default();
         let repo = test_repo(temp_dir.to_str().unwrap(), &vec![Path::new("what")]);
 
@@ -587,7 +615,7 @@ mod tests {
 
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
         let mut writer = Buffer::no_color();
-        status.get_remote_branch_difference_message(&mut writer);
+        status.write_remote_branch_difference_message(&mut writer);
         let expected = indoc! {"\
             Your branch is up to date with 'origin/half'.
 
@@ -608,7 +636,7 @@ mod tests {
 
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
         let mut writer = Buffer::no_color();
-        status.get_remote_branch_difference_message(&mut writer);
+        status.write_remote_branch_difference_message(&mut writer);
         let expected = indoc! {"\
             Your branch is behind 'origin/tip' by 2 commits, and can be fast-forwarded.
               (use \"git pull\" to update your local branch)
@@ -635,7 +663,7 @@ mod tests {
 
             "};
         let mut writer = Buffer::no_color();
-        status.get_remote_branch_difference_message(&mut writer);
+        status.write_remote_branch_difference_message(&mut writer);
         assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), expected);
     }
 
@@ -657,7 +685,7 @@ mod tests {
 
             "};
         let mut writer = Buffer::no_color();
-        status.get_remote_branch_difference_message(&mut writer);
+        status.write_remote_branch_difference_message(&mut writer);
         assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), expected);
     }
 
@@ -685,7 +713,7 @@ mod tests {
 
             "};
         let mut writer = Buffer::no_color();
-        status.get_remote_branch_difference_message(&mut writer);
+        status.write_remote_branch_difference_message(&mut writer);
         assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), expected);
     }
 
@@ -700,7 +728,7 @@ mod tests {
 
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
         let mut writer = Buffer::no_color();
-        status.get_remote_branch_difference_message(&mut writer);
+        status.write_remote_branch_difference_message(&mut writer);
         assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), "");
     }
 
@@ -714,7 +742,7 @@ mod tests {
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
 
         let mut writer = Buffer::no_color();
-        assert_eq!(status.get_unstaged_message(&mut writer), false);
+        assert_eq!(status.write_unstaged_message(&mut writer), false);
         assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), "");
     }
 
@@ -738,7 +766,7 @@ mod tests {
             "};
 
         let mut writer = Buffer::no_color();
-        assert_eq!(status.get_unstaged_message(&mut writer), true);
+        assert_eq!(status.write_unstaged_message(&mut writer), true);
         assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), expected);
     }
 
@@ -763,7 +791,7 @@ mod tests {
 
             "};
         let mut writer = Buffer::no_color();
-        assert_eq!(status.get_unstaged_message(&mut writer), true);
+        assert_eq!(status.write_unstaged_message(&mut writer), true);
         assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), expected);
     }
 
@@ -796,7 +824,7 @@ mod tests {
             "};
 
         let mut writer = Buffer::no_color();
-        assert_eq!(status.get_unstaged_message(&mut writer), true);
+        assert_eq!(status.write_unstaged_message(&mut writer), true);
         assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), expected);
     }
 
@@ -810,7 +838,7 @@ mod tests {
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
 
         let mut writer = Buffer::no_color();
-        assert_eq!(status.get_staged_message(&mut writer), false);
+        assert_eq!(status.write_staged_message(&mut writer), false);
         assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), "");
     }
 
@@ -834,7 +862,7 @@ mod tests {
 
             "};
         let mut writer = Buffer::no_color();
-        assert_eq!(status.get_staged_message(&mut writer), true);
+        assert_eq!(status.write_staged_message(&mut writer), true);
         assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), expected);
     }
 
@@ -865,7 +893,7 @@ mod tests {
 
             "};
         let mut writer = Buffer::no_color();
-        assert_eq!(status.get_staged_message(&mut writer), true);
+        assert_eq!(status.write_staged_message(&mut writer), true);
         assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), expected);
     }
 
@@ -879,7 +907,7 @@ mod tests {
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
 
         let mut writer = Buffer::no_color();
-        assert_eq!(status.get_untracked_message(&mut writer), false);
+        assert_eq!(status.write_untracked_message(&mut writer), false);
     }
 
     #[test]
@@ -901,7 +929,7 @@ mod tests {
             "};
 
         let mut writer = Buffer::no_color();
-        assert_eq!(status.get_untracked_message(&mut writer), true);
+        assert_eq!(status.write_untracked_message(&mut writer), true);
         assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), expected);
     }
 
@@ -930,46 +958,59 @@ mod tests {
             "};
 
         let mut writer = Buffer::no_color();
-        assert_eq!(status.get_untracked_message(&mut writer), true);
+        assert_eq!(status.write_untracked_message(&mut writer), true);
         assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), expected);
     }
 
     #[test]
     fn test_no_change_epilog() {
-        let expected = "nothing to commit, working tree clean".to_string();
-        assert_eq!(RepoStatus::get_epilog(false, false, false), Some(expected));
+        let expected = "nothing to commit, working tree clean\n".to_string();
+        let mut writer = Buffer::no_color();
+        RepoStatus::write_epilog(&mut writer, false, false, false);
+        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), expected);
     }
 
     #[test]
     fn test_unstaged_epilog() {
         let expected =
-            "no changes added to commit (use \"git add\" and/or \"git commit -a\")".to_string();
-        assert_eq!(RepoStatus::get_epilog(false, true, false), Some(expected));
+            "no changes added to commit (use \"git add\" and/or \"git commit -a\")\n".to_string();
+        let mut writer = Buffer::no_color();
+        RepoStatus::write_epilog(&mut writer, false, true, false);
+        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), expected);
     }
 
     #[test]
     fn test_staged_epilog() {
-        assert_eq!(RepoStatus::get_epilog(true, false, false), None);
+        let mut writer = Buffer::no_color();
+        RepoStatus::write_epilog(&mut writer, true, false, false);
+        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), "");
     }
 
     #[test]
     fn test_untracked_epilog() {
         let expected =
-            "nothing added to commit but untracked files present (use \"git add\" to track)"
+            "nothing added to commit but untracked files present (use \"git add\" to track)\n"
                 .to_string();
-        assert_eq!(RepoStatus::get_epilog(false, false, true), Some(expected));
+
+        let mut writer = Buffer::no_color();
+        RepoStatus::write_epilog(&mut writer, false, false, true);
+        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), expected);
     }
 
     #[test]
     fn test_unstaged_overrides_untracked_epilog() {
         let expected =
-            "no changes added to commit (use \"git add\" and/or \"git commit -a\")".to_string();
-        assert_eq!(RepoStatus::get_epilog(false, true, true), Some(expected));
+            "no changes added to commit (use \"git add\" and/or \"git commit -a\")\n".to_string();
+        let mut writer = Buffer::no_color();
+        RepoStatus::write_epilog(&mut writer, false, true, true);
+        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), expected);
     }
 
     #[test]
     fn test_staged_overrides_unstaged_epilog() {
-        assert_eq!(RepoStatus::get_epilog(true, true, false), None);
+        let mut writer = Buffer::no_color();
+        RepoStatus::write_epilog(&mut writer, true, true, false);
+        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), "");
     }
 
     #[test]
@@ -1101,3 +1142,10 @@ mod tests {
         assert_eq!(color, Color::White);
     }
 }
+
+// Need test for the upstream branch is gone, currently panics
+//
+//      On branch colors
+//      Your branch is based on 'origin/colors', but the upstream is gone.
+//        (use "git branch --unset-upstream" to fixup)
+//

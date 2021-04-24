@@ -5,7 +5,7 @@
  *          https://www.boost.org/LICENSE_1_0.txt)
  */
 
-use std::io;
+use std::{fmt, io};
 
 #[derive(Debug)]
 pub struct StatusError {
@@ -17,5 +17,11 @@ impl From<io::Error> for StatusError {
         StatusError {
             message: err.to_string(),
         }
+    }
+}
+
+impl fmt::Display for StatusError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.message)
     }
 }
