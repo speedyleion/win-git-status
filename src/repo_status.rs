@@ -313,8 +313,8 @@ impl RepoStatus {
         writer.write(message.as_bytes()).unwrap();
 
         writer.set_color(ColorSpec::new().set_fg(Some(Color::Green))).unwrap();
-
         writer.write(files.as_bytes()).unwrap();
+        writer.reset();
         true
     }
 
