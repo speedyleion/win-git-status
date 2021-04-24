@@ -21,6 +21,7 @@ enum StatusColorSlot {
     Untracked,
     Changed,
     Added,
+    NoBranch,
 }
 
 impl fmt::Display for StatusColorSlot {
@@ -29,6 +30,7 @@ impl fmt::Display for StatusColorSlot {
             StatusColorSlot::Untracked => write!(f, "untracked"),
             StatusColorSlot::Changed => write!(f, "changed"),
             StatusColorSlot::Added => write!(f, "added"),
+            StatusColorSlot::NoBranch => write!(f, "nobranch"),
         }
     }
 }
@@ -39,6 +41,7 @@ impl StatusColorSlot {
             StatusColorSlot::Untracked => Color::Red,
             StatusColorSlot::Changed => Color::Red,
             StatusColorSlot::Added => Color::Green,
+            StatusColorSlot::NoBranch => Color::Red,
         }
     }
 }
@@ -238,8 +241,13 @@ impl RepoStatus {
             .id()
             .to_string();
         let short_sha = &commit_sha[..7];
-        let detached = formatdoc! {"Head detached at {sha}\n", sha=short_sha};
-        writer.write_all(detached.as_bytes()).unwrap();
+        let mut color_spec = ColorSpec::new();
+        color_spec.set_fg(Some(self.get_color(StatusColorSlot::NoBranch)));
+        writer.set_color(&color_spec).unwrap();
+        writer.write_all(b"Head detached at ").unwrap();
+        writer.reset().unwrap();
+        writer.write_all(short_sha.as_bytes()).unwrap();
+        writer.write_all(b"\n").unwrap();
     }
 
     fn get_unstaged_message<W: WriteColor + Write>(&self, writer: &mut W) -> bool {
@@ -1056,5 +1064,40 @@ mod tests {
         let color = status.get_color(StatusColorSlot::Added);
 
         assert_eq!(color, Color::Yellow);
+    }
+
+    #[test]
+    fn test_default_no_branch_color() {
+        let file_names = vec!["one", "two", "three", "four"];
+        let files = file_names.iter().map(|n| Path::new(n)).collect();
+        let temp_dir = TempDir::default();
+        let repo = test_repo(temp_dir.to_str().unwrap(), &files);
+        let head = repo.head().unwrap().peel_to_commit().unwrap();
+        let parent = head.parent(0).unwrap().id();
+        repo.set_head_detached(parent).unwrap();
+
+        let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
+        let color = status.get_color(StatusColorSlot::NoBranch);
+
+        assert_eq!(color, Color::Red);
+    }
+
+    #[test]
+    fn test_overridden_no_branch_color() {
+        let file_names = vec!["one", "two", "three", "four"];
+        let files = file_names.iter().map(|n| Path::new(n)).collect();
+        let temp_dir = TempDir::default();
+        let repo = test_repo(temp_dir.to_str().unwrap(), &files);
+        let head = repo.head().unwrap().peel_to_commit().unwrap();
+        let parent = head.parent(0).unwrap().id();
+        repo.set_head_detached(parent).unwrap();
+        let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
+
+        let mut config = repo.config().unwrap();
+        config.set_str("color.status.nobranch", "white").unwrap();
+
+        let color = status.get_color(StatusColorSlot::NoBranch);
+
+        assert_eq!(color, Color::White);
     }
 }
