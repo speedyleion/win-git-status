@@ -292,8 +292,10 @@ fn is_ignored(entry: &mut ReadDirEntry, name: &str, ignores: &[Arc<Gitignore>]) 
 
 fn directory_has_one_trackable_file(root: &Path, dir: &Path, ignores: &[Arc<Gitignore>]) -> bool {
     for entry in fs::read_dir(dir).unwrap() {
-        let path = entry.unwrap().path();
-        if !path.is_dir() {
+        let entry = entry.unwrap();
+        let path = entry.path();
+        let is_dir = entry.file_type().unwrap().is_dir();
+        if !is_dir {
             let relative_path = diff_paths(&path, root).unwrap();
             let name = relative_path.to_str().unwrap().replace("\\", "/");
             let mut ignored = false;
@@ -343,13 +345,11 @@ fn submodule_spawned_status(
     let repo = Repository::open(&path).unwrap();
     let repo_path = repo.path();
     let index_file = repo_path.join("index");
-    let index = Index::new(&*index_file).unwrap();
+    let index = Index::new(&index_file).unwrap();
 
     let workdir = repo.workdir().unwrap();
-    let (work_tree_diff, index_diff) = rayon::join(
-        || WorkTree::diff_against_index(workdir, index).unwrap(),
-        || TreeDiff::diff_against_index(&path),
-    );
+    let work_tree_diff = WorkTree::diff_against_index(workdir, index).unwrap();
+    let index_diff = TreeDiff::diff_against_index_with_repo(&repo);
 
     // This isn't quite true, but close enough for now
     let modified_content = !index_diff.entries.is_empty();

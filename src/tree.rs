@@ -19,6 +19,10 @@ pub struct TreeDiff {
 impl TreeDiff {
     pub fn diff_against_index(path: &Path) -> TreeDiff {
         let repo = Repository::open(path).unwrap();
+        TreeDiff::diff_against_index_with_repo(&repo)
+    }
+
+    pub fn diff_against_index_with_repo(repo: &Repository) -> TreeDiff {
         let mut options = StatusOptions::new();
         options.show(StatusShow::Index);
         let diff = repo.statuses(Option::from(&mut options)).unwrap();
