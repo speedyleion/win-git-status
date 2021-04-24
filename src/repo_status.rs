@@ -13,11 +13,28 @@ use indoc::formatdoc;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::path::Path;
+use colored::{Color, Colorize};
 
+// See for the list of slots https://git-scm.com/docs/git-config#Documentation/git-config.txt-colorstatusltslotgt
+enum StatusColorSlot {
+    Untracked,
+    Changed,
+}
 pub struct RepoStatus {
     repo: Repository,
     index_diff: TreeDiff,
     work_tree_diff: WorkTree,
+}
+
+impl RepoStatus {
+    fn get_color(&self, color_slot: StatusColorSlot) -> Color {
+        let config = self.repo.config().unwrap();
+        let color = config.get_string("color.status.untracked");
+        match color {
+            Ok(color) => color.into(),
+            Err(_) => Color::Red,
+        }
+    }
 }
 
 impl Debug for RepoStatus {
@@ -266,6 +283,7 @@ impl RepoStatus {
                     {files}", files=files};
         Some(message)
     }
+
     fn get_epilog(
         staged: &Option<String>,
         unstaged: &Option<String>,
@@ -296,6 +314,7 @@ mod tests {
     use indoc::indoc;
     use std::fs;
     use temp_testdir::TempDir;
+    use colored::ColoredString;
 
     // A test repo to be able to test message state generation.  This repo will have 2 branches
     // created:
@@ -839,5 +858,54 @@ mod tests {
             RepoStatus::get_epilog(&Some("what".to_string()), &Some("why".to_string()), &None),
             None
         );
+    }
+
+    #[test]
+    fn test_default_untracked_color() {
+        let file_names = vec!["one", "two", "three", "four"];
+        let files = file_names.iter().map(|n| Path::new(n)).collect();
+        let temp_dir = TempDir::default();
+        let repo = test_repo(temp_dir.to_str().unwrap(), &files);
+
+        write_to_file(&repo, Path::new("some_new_file"), "stuff");
+
+        let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
+        let color = status.get_color(StatusColorSlot::Untracked);
+
+        assert_eq!(color, Color::Red);
+    }
+
+    #[test]
+    fn test_overriden_untracked_color() {
+        let file_names = vec!["one", "two", "three", "four"];
+        let files = file_names.iter().map(|n| Path::new(n)).collect();
+        let temp_dir = TempDir::default();
+        let repo = test_repo(temp_dir.to_str().unwrap(), &files);
+        let mut config = repo.config().unwrap();
+        config.set_str("color.status.untracked", "white").unwrap();
+
+        write_to_file(&repo, Path::new("some_new_file"), "stuff");
+
+        let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
+        let color = status.get_color(StatusColorSlot::Untracked);
+
+        assert_eq!(color, Color::White);
+    }
+
+    #[test]
+    fn test_default_changed_file_color() {
+        let file_names = vec!["one", "two", "three", "four"];
+        let files = file_names.iter().map(|n| Path::new(n)).collect();
+        let temp_dir = TempDir::default();
+        let repo = test_repo(temp_dir.to_str().unwrap(), &files);
+
+        write_to_file(&repo, files[2], "what???");
+
+        let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
+
+        let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
+        let color = status.get_color(StatusColorSlot::Changed);
+
+        assert_eq!(color, Color::Red);
     }
 }
