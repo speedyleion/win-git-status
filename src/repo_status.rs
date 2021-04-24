@@ -14,6 +14,7 @@ use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::path::Path;
 use termcolor::Color;
+use std::io::{stdout, Write};
 
 // See for the list of slots https://git-scm.com/docs/git-config#Documentation/git-config.txt-colorstatusltslotgt
 enum StatusColorSlot {
@@ -112,12 +113,13 @@ impl RepoStatus {
     }
 
     pub fn message(&self) -> Result<String, StatusError> {
+        let mut writer = stdout();
         let branch = self.get_branch_message();
         let remote_state = self.get_remote_branch_difference_message();
         let staged = self.get_staged_message();
         let unstaged = self.get_unstaged_message();
-        let untracked = self.get_untracked_message();
-        let epilog = RepoStatus::get_epilog(&staged, &unstaged, &untracked);
+        let untracked = self.get_untracked_message(&mut writer);
+        let epilog = RepoStatus::get_epilog(&staged, &unstaged, untracked);
 
         let branch_state = match remote_state {
             None => branch,
@@ -125,7 +127,7 @@ impl RepoStatus {
         };
         let mut message = vec![branch_state];
 
-        for block in &[&staged, &unstaged, &untracked, &epilog] {
+        for block in &[&staged, &unstaged, &epilog] {
             match block {
                 Some(b) => message.push(b.to_string()),
                 None => (),
@@ -284,7 +286,7 @@ impl RepoStatus {
         Some(message)
     }
 
-    fn get_untracked_message(&self) -> Option<String> {
+    fn get_untracked_message<W: Write>(&self, writer: &mut W) -> bool {
         let untracked_files: Vec<String> = self
             .work_tree_diff
             .entries
@@ -294,7 +296,7 @@ impl RepoStatus {
             .collect();
 
         if untracked_files.is_empty() {
-            return None;
+            return false;
         }
 
         let files = untracked_files
@@ -302,17 +304,21 @@ impl RepoStatus {
             .map(|s| &**s)
             .collect::<Vec<&str>>()
             .join("\n        ");
+
+
         let message = formatdoc! {"\
             Untracked files:
               (use \"git add <file>...\" to include in what will be committed)
-                    {files}", files=files};
-        Some(message)
+                    "};
+        writer.write(message.as_bytes()).unwrap();
+        writer.write(files.as_bytes()).unwrap();
+        true
     }
 
     fn get_epilog(
         staged: &Option<String>,
         unstaged: &Option<String>,
-        untracked: &Option<String>,
+        untracked: bool,
     ) -> Option<String> {
         if staged != &None {
             return None;
@@ -322,7 +328,7 @@ impl RepoStatus {
                 "no changes added to commit (use \"git add\" and/or \"git commit -a\")".to_string(),
             );
         }
-        if untracked != &None {
+        if untracked {
             return Some(
                 "nothing added to commit but untracked files present (use \"git add\" to track)"
                     .to_string(),
@@ -784,7 +790,8 @@ mod tests {
 
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
 
-        assert_eq!(status.get_untracked_message(), None);
+        let mut writer = Vec::new();
+        assert_eq!(status.get_untracked_message(&mut writer), false);
     }
 
     #[test]
@@ -797,13 +804,14 @@ mod tests {
         write_to_file(&repo, Path::new("some_new_file"), "stuff");
 
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
-        let message = status.get_untracked_message();
 
         let expected = indoc! {"\
             Untracked files:
               (use \"git add <file>...\" to include in what will be committed)
                     some_new_file"};
-        assert_eq!(message, Some(expected.to_string()));
+        let mut writer = Vec::new();
+        assert_eq!(status.get_untracked_message(&mut writer), true);
+        assert_eq!(String::from_utf8(writer).unwrap(), expected);
     }
 
     #[test]
@@ -821,20 +829,21 @@ mod tests {
         write_to_file(&repo, files[1], "stuff");
 
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
-        let message = status.get_untracked_message();
 
         let expected = indoc! {"\
             Untracked files:
               (use \"git add <file>...\" to include in what will be committed)
                     a_new_file
                     b/"};
-        assert_eq!(message, Some(expected.to_string()));
+        let mut writer = Vec::new();
+        assert_eq!(status.get_untracked_message(&mut writer), true);
+        assert_eq!(String::from_utf8(writer).unwrap(), expected);
     }
 
     #[test]
     fn test_no_change_epilog() {
         let expected = "nothing to commit, working tree clean".to_string();
-        assert_eq!(RepoStatus::get_epilog(&None, &None, &None), Some(expected));
+        assert_eq!(RepoStatus::get_epilog(&None, &None, false), Some(expected));
     }
 
     #[test]
@@ -842,7 +851,7 @@ mod tests {
         let expected =
             "no changes added to commit (use \"git add\" and/or \"git commit -a\")".to_string();
         assert_eq!(
-            RepoStatus::get_epilog(&None, &Some("sure".to_string()), &None),
+            RepoStatus::get_epilog(&None, &Some("sure".to_string()), false),
             Some(expected)
         );
     }
@@ -850,7 +859,7 @@ mod tests {
     #[test]
     fn test_staged_epilog() {
         assert_eq!(
-            RepoStatus::get_epilog(&Some("what".to_string()), &None, &None),
+            RepoStatus::get_epilog(&Some("what".to_string()), &None, false),
             None
         );
     }
@@ -861,7 +870,7 @@ mod tests {
             "nothing added to commit but untracked files present (use \"git add\" to track)"
                 .to_string();
         assert_eq!(
-            RepoStatus::get_epilog(&None, &None, &Some("what".to_string())),
+            RepoStatus::get_epilog(&None, &None, true),
             Some(expected)
         );
     }
@@ -871,7 +880,7 @@ mod tests {
         let expected =
             "no changes added to commit (use \"git add\" and/or \"git commit -a\")".to_string();
         assert_eq!(
-            RepoStatus::get_epilog(&None, &Some("sure".to_string()), &Some("what".to_string())),
+            RepoStatus::get_epilog(&None, &Some("sure".to_string()), true),
             Some(expected)
         );
     }
@@ -879,7 +888,7 @@ mod tests {
     #[test]
     fn test_staged_overrides_unstaged_epilog() {
         assert_eq!(
-            RepoStatus::get_epilog(&Some("what".to_string()), &Some("why".to_string()), &None),
+            RepoStatus::get_epilog(&Some("what".to_string()), &Some("why".to_string()), false),
             None
         );
     }
