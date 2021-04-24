@@ -12,9 +12,9 @@ use git2::Repository;
 use indoc::formatdoc;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
+use std::io::Write;
 use std::path::Path;
-use termcolor::{Color, ColorSpec, WriteColor, StandardStream, ColorChoice};
-use std::io::{stdout, Write};
+use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
 // See for the list of slots https://git-scm.com/docs/git-config#Documentation/git-config.txt-colorstatusltslotgt
 enum StatusColorSlot {
@@ -57,7 +57,7 @@ impl RepoStatus {
             Ok(color) => match color.parse() {
                 Ok(color) => color,
                 Err(_) => color_slot.default_color(),
-            }
+            },
             Err(_) => color_slot.default_color(),
         }
     }
@@ -259,15 +259,15 @@ impl RepoStatus {
               (use \"git restore <file>...\" to discard changes in working directory)
                     "};
 
-        writer.write(message.as_bytes()).unwrap();
+        writer.write_all(message.as_bytes()).unwrap();
 
         let mut color_spec = ColorSpec::new();
         color_spec.set_fg(Some(self.get_color(StatusColorSlot::Changed)));
         writer.set_color(&color_spec).unwrap();
-        writer.write(files.as_bytes()).unwrap();
+        writer.write_all(files.as_bytes()).unwrap();
         writer.reset().unwrap();
 
-        writer.write(b"\n\n").unwrap();
+        writer.write_all(b"\n\n").unwrap();
         true
     }
 
@@ -314,27 +314,22 @@ impl RepoStatus {
             .collect::<Vec<&str>>()
             .join("\n        ");
 
-
         let message = formatdoc! {"\
             Untracked files:
               (use \"git add <file>...\" to include in what will be committed)
                     "};
-        writer.write(message.as_bytes()).unwrap();
+        writer.write_all(message.as_bytes()).unwrap();
 
         let mut color_spec = ColorSpec::new();
         color_spec.set_fg(Some(self.get_color(StatusColorSlot::Untracked)));
         writer.set_color(&color_spec).unwrap();
-        writer.write(files.as_bytes()).unwrap();
+        writer.write_all(files.as_bytes()).unwrap();
         writer.reset().unwrap();
-        writer.write(b"\n\n").unwrap();
+        writer.write_all(b"\n\n").unwrap();
         true
     }
 
-    fn get_epilog(
-        staged: &Option<String>,
-        unstaged: bool,
-        untracked: bool,
-    ) -> Option<String> {
+    fn get_epilog(staged: &Option<String>, unstaged: bool, untracked: bool) -> Option<String> {
         if staged != &None {
             return None;
         }
@@ -360,7 +355,7 @@ mod tests {
     use indoc::indoc;
     use std::fs;
     use temp_testdir::TempDir;
-    use termcolor::{BufferWriter, Buffer};
+    use termcolor::Buffer;
 
     // A test repo to be able to test message state generation.  This repo will have 2 branches
     // created:
@@ -885,10 +880,7 @@ mod tests {
     fn test_unstaged_epilog() {
         let expected =
             "no changes added to commit (use \"git add\" and/or \"git commit -a\")".to_string();
-        assert_eq!(
-            RepoStatus::get_epilog(&None, true, false),
-            Some(expected)
-        );
+        assert_eq!(RepoStatus::get_epilog(&None, true, false), Some(expected));
     }
 
     #[test]
@@ -904,20 +896,14 @@ mod tests {
         let expected =
             "nothing added to commit but untracked files present (use \"git add\" to track)"
                 .to_string();
-        assert_eq!(
-            RepoStatus::get_epilog(&None, false, true),
-            Some(expected)
-        );
+        assert_eq!(RepoStatus::get_epilog(&None, false, true), Some(expected));
     }
 
     #[test]
     fn test_unstaged_overrides_untracked_epilog() {
         let expected =
             "no changes added to commit (use \"git add\" and/or \"git commit -a\")".to_string();
-        assert_eq!(
-            RepoStatus::get_epilog(&None, true, true),
-            Some(expected)
-        );
+        assert_eq!(RepoStatus::get_epilog(&None, true, true), Some(expected));
     }
 
     #[test]
