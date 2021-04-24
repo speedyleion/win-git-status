@@ -13,13 +13,24 @@ use indoc::formatdoc;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::path::Path;
-use colored::{Color, Colorize};
+use termcolor::Color;
 
 // See for the list of slots https://git-scm.com/docs/git-config#Documentation/git-config.txt-colorstatusltslotgt
 enum StatusColorSlot {
     Untracked,
     Changed,
 }
+
+
+impl fmt::Display for StatusColorSlot {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            StatusColorSlot::Untracked => write!(f, "untracked"),
+            StatusColorSlot::Changed => write!(f, "changed"),
+        }
+    }
+}
+
 pub struct RepoStatus {
     repo: Repository,
     index_diff: TreeDiff,
@@ -29,9 +40,13 @@ pub struct RepoStatus {
 impl RepoStatus {
     fn get_color(&self, color_slot: StatusColorSlot) -> Color {
         let config = self.repo.config().unwrap();
-        let color = config.get_string("color.status.untracked");
+        let config_string = format!("color.status.{}", color_slot);
+        let color = config.get_string(&config_string);
         match color {
-            Ok(color) => color.into(),
+            Ok(color) => match color.parse() {
+                Ok(color) => color,
+                Err(_) => Color::Red,
+            }
             Err(_) => Color::Red,
         }
     }
@@ -314,7 +329,6 @@ mod tests {
     use indoc::indoc;
     use std::fs;
     use temp_testdir::TempDir;
-    use colored::ColoredString;
 
     // A test repo to be able to test message state generation.  This repo will have 2 branches
     // created:
@@ -903,9 +917,27 @@ mod tests {
 
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
 
-        let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
         let color = status.get_color(StatusColorSlot::Changed);
 
         assert_eq!(color, Color::Red);
+    }
+
+    #[test]
+    fn test_configured_changed_file_color() {
+        let file_names = vec!["one", "two", "three", "four"];
+        let files = file_names.iter().map(|n| Path::new(n)).collect();
+        let temp_dir = TempDir::default();
+        let repo = test_repo(temp_dir.to_str().unwrap(), &files);
+
+        let mut config = repo.config().unwrap();
+        config.set_str("color.status.changed", "blue").unwrap();
+
+        write_to_file(&repo, files[2], "what???");
+
+        let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
+
+        let color = status.get_color(StatusColorSlot::Changed);
+
+        assert_eq!(color, Color::Blue);
     }
 }
