@@ -13,7 +13,7 @@ use indoc::formatdoc;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::path::Path;
-use termcolor::Color;
+use termcolor::{Color, ColorSpec, WriteColor, StandardStream, ColorChoice};
 use std::io::{stdout, Write};
 
 // See for the list of slots https://git-scm.com/docs/git-config#Documentation/git-config.txt-colorstatusltslotgt
@@ -113,7 +113,7 @@ impl RepoStatus {
     }
 
     pub fn message(&self) -> Result<String, StatusError> {
-        let mut writer = stdout();
+        let mut writer = StandardStream::stdout(ColorChoice::Auto);
         let branch = self.get_branch_message();
         let remote_state = self.get_remote_branch_difference_message();
         let staged = self.get_staged_message();
@@ -286,7 +286,7 @@ impl RepoStatus {
         Some(message)
     }
 
-    fn get_untracked_message<W: Write>(&self, writer: &mut W) -> bool {
+    fn get_untracked_message<W: WriteColor + Write>(&self, writer: &mut W) -> bool {
         let untracked_files: Vec<String> = self
             .work_tree_diff
             .entries
@@ -311,6 +311,9 @@ impl RepoStatus {
               (use \"git add <file>...\" to include in what will be committed)
                     "};
         writer.write(message.as_bytes()).unwrap();
+
+        writer.set_color(ColorSpec::new().set_fg(Some(Color::Green))).unwrap();
+
         writer.write(files.as_bytes()).unwrap();
         true
     }
@@ -345,6 +348,7 @@ mod tests {
     use indoc::indoc;
     use std::fs;
     use temp_testdir::TempDir;
+    use termcolor::{BufferWriter, Buffer};
 
     // A test repo to be able to test message state generation.  This repo will have 2 branches
     // created:
@@ -790,7 +794,7 @@ mod tests {
 
         let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
 
-        let mut writer = Vec::new();
+        let mut writer = Buffer::no_color();
         assert_eq!(status.get_untracked_message(&mut writer), false);
     }
 
@@ -809,9 +813,10 @@ mod tests {
             Untracked files:
               (use \"git add <file>...\" to include in what will be committed)
                     some_new_file"};
-        let mut writer = Vec::new();
+
+        let mut writer = Buffer::no_color();
         assert_eq!(status.get_untracked_message(&mut writer), true);
-        assert_eq!(String::from_utf8(writer).unwrap(), expected);
+        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), expected);
     }
 
     #[test]
@@ -835,9 +840,10 @@ mod tests {
               (use \"git add <file>...\" to include in what will be committed)
                     a_new_file
                     b/"};
-        let mut writer = Vec::new();
+
+        let mut writer = Buffer::no_color();
         assert_eq!(status.get_untracked_message(&mut writer), true);
-        assert_eq!(String::from_utf8(writer).unwrap(), expected);
+        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), expected);
     }
 
     #[test]
