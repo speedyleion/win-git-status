@@ -5,11 +5,14 @@
  *          https://www.boost.org/LICENSE_1_0.txt)
  */
 
+use nom::bits;
 use nom::bytes::complete::tag;
 use nom::number::complete::be_u16;
 use nom::number::complete::be_u32;
 use nom::sequence::tuple;
 use nom::take;
+use nom::take_bits;
+use nom::tuple;
 
 use nom::do_parse;
 use nom::IResult;
@@ -29,6 +32,38 @@ impl From<nom::Err<nom::error::Error<&[u8]>>> for StatusError {
             message: err.to_string(),
         }
     }
+}
+
+// A function for parsing the name size of an index entry.
+// This assumes the input is at the 16 bit flags field.
+//
+//      A 16-bit 'flags' field split into (high to low bits)
+//      - 1-bit assume-valid flag
+//      - 1-bit extended flag (must be zero in version 2)
+//      - 2-bit stage (during merge)
+//      - 12-bit name length if the length is less than 0xFFF; otherwise 0xFFF is stored in this
+//        field.
+//
+// Note: This currently throws away the `stage` entry which means this doesn't properly handle
+//       merged files.
+//
+// To be honest, I'm not sure exactly why I wasn't able to do this in place next to the rest of
+// the entry parsing, I think it has to do with treating the byte stream as bits.
+// I think it's fairly reasonable that one needs to end the input at a byte boundary so anything
+// that needs to be broken into bits should either be done after the fact of in a function like
+// this where all the bits within a set of bytes can be processed.
+//
+// Also trying to put this as a function in the impl block for Index resulted in some compilation
+// errors.  Not sure on why, my macro knowledge is next to nothing.
+fn parse_name_size(input: &[u8]) -> IResult<&[u8], u16> {
+    let (input, b): (&[u8], (u8, u8, u16)) = do_parse!(
+        input,
+        b: bits!(tuple!(take_bits!(2u8), take_bits!(2u8), take_bits!(12u16))) >> (b)
+    )?;
+    // I tried to just return the u16 from the do_parse macro, but I kept hitting compiler errors
+    // so I decided to fall back to full parse there and access the tuple entry here outside of the
+    // do_parse
+    Ok((input, b.2))
 }
 
 /// An index of a repo.
@@ -114,7 +149,7 @@ impl Index {
                 >> take!(8)
                 >> size: be_u32
                 >> sha: take!(20)
-                >> name_size: be_u16
+                >> name_size: parse_name_size
                 >> name: take!(name_size)
                 >> take!(8 - ((62 + name_size) % 8))
                 >> (
@@ -170,6 +205,8 @@ impl Index {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use temp_testdir::TempDir;
 
     #[test]
     fn test_read_header_version_2() {
@@ -391,7 +428,6 @@ mod tests {
         Index::get_directory_entry(rooted_dir, &mut map);
         assert_eq!(true, map.len() == 1 && map.contains_key(""));
     }
-
     #[test]
     fn test_get_directory_3_levels_deep() {
         let deep_dir = "1/2/3";
@@ -403,5 +439,60 @@ mod tests {
             true,
             map.len() == directories.len() && directories.iter().all(|d| map.contains_key(*d))
         );
+    }
+
+    #[test]
+    fn test_merged_file() {
+        let temp_dir = TempDir::default();
+        let version: u32 = 2;
+        let entries: u32 = 2;
+        let name = b"some_file";
+        let sha = b"abacadaba2376182368a";
+        let mut stream: Vec<u8> = vec![];
+        stream.extend(b"DIRC");
+        stream.extend(&version.to_be_bytes());
+        stream.extend(&entries.to_be_bytes());
+        for entry in 0..entries {
+            let ctime: u64 = 10;
+            stream.extend(&ctime.to_be_bytes());
+            let mtime_s: u32 = 20;
+            stream.extend(&mtime_s.to_be_bytes());
+            let mtime_ns: u32 = 25;
+            stream.extend(&mtime_ns.to_be_bytes());
+            let dev: u32 = 30;
+            stream.extend(&dev.to_be_bytes());
+            let ino: u32 = 30;
+            stream.extend(&ino.to_be_bytes());
+            let mode: u32 = 40;
+            stream.extend(&mode.to_be_bytes());
+            let uid: u32 = 50;
+            stream.extend(&uid.to_be_bytes());
+            let gid: u32 = 60;
+            stream.extend(&gid.to_be_bytes());
+            let file_size: u32 = 70;
+            stream.extend(&file_size.to_be_bytes());
+            stream.extend(sha);
+            let mut name_length: u16 = name.len() as u16;
+            //The different stage numbers are not really used during git-add command. They are used for handling merge conflicts. In a nutshell:
+            //Slot 0: “normal”, un-conflicted, all-is-well entry.
+            //Slot 1: “base”, the common ancestor version.
+            //Slot 2: “ours”, the target (HEAD) version.
+            //Slot 3: “theirs”, the being-merged-in version.
+            let stage = match entry {
+                0 => 0,
+                _ => 0b0100000000000000,
+            };
+            name_length |= stage;
+            stream.extend(&name_length.to_be_bytes());
+            stream.extend(name);
+            let pad_length = 8 - ((62 + name_length) % 8);
+            stream.extend(vec![0; pad_length as usize]);
+        }
+        let index_file = temp_dir.join("some_index");
+        fs::write(&index_file, stream).unwrap();
+        let index = Index::new(&index_file).unwrap();
+        let root = index.entries.get("").unwrap();
+
+        assert_eq!(root.len(), 2);
     }
 }
