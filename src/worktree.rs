@@ -88,10 +88,6 @@ fn read_dir(
 
 /// A worktree of a repo.
 ///
-/// Some common git internal terms.
-///
-/// - `oid` - Object ID.  This is often the SHA of an item.  It could be a commit, file blob, tree,
-///     etc.
 #[derive(Debug)]
 pub struct WorkTree {
     path: String,
@@ -172,7 +168,6 @@ fn get_file_deltas(
     read_dir_state: &ReadWorktreeState,
     scope: &rayon::Scope,
 ) {
-    // println!("The worktree {:?}", worktree);
     let file_changes = &read_dir_state.changed_files;
     let mut worktree_iter = worktree.iter_mut();
     let mut index_iter = index_entry.iter();
@@ -285,12 +280,18 @@ fn is_ignored(entry: &mut ReadDirEntry, name: &str, ignores: &[Arc<Gitignore>]) 
     if is_dir {
         let path = entry.path();
         let root = path.ancestors().nth(entry.depth).unwrap();
-        return !directory_has_one_trackable_file(&root, &path, &ignores);
+        let ignores = ignores.to_vec();
+        return !directory_has_one_trackable_file(&root, &path, ignores);
     }
     false
 }
 
-fn directory_has_one_trackable_file(root: &Path, dir: &Path, ignores: &[Arc<Gitignore>]) -> bool {
+fn directory_has_one_trackable_file(
+    root: &Path,
+    dir: &Path,
+    mut ignores: Vec<Arc<Gitignore>>,
+) -> bool {
+    update_ignores(dir, &mut ignores);
     for entry in fs::read_dir(dir).unwrap() {
         let entry = entry.unwrap();
         let path = entry.path();
@@ -299,7 +300,7 @@ fn directory_has_one_trackable_file(root: &Path, dir: &Path, ignores: &[Arc<Giti
             let relative_path = diff_paths(&path, root).unwrap();
             let name = relative_path.to_str().unwrap().replace("\\", "/");
             let mut ignored = false;
-            for ignore in ignores {
+            for ignore in &ignores {
                 let matched = ignore.matched_path_or_any_parents(&name, false);
                 if matched.is_whitelist() {
                     ignored = false;
@@ -313,8 +314,11 @@ fn directory_has_one_trackable_file(root: &Path, dir: &Path, ignores: &[Arc<Giti
             if !ignored {
                 return true;
             }
-        } else if directory_has_one_trackable_file(root, &path, ignores) {
-            return true;
+        } else {
+            let ignores = ignores.clone();
+            if directory_has_one_trackable_file(root, &path, ignores) {
+                return true;
+            }
         }
     }
     false
@@ -668,5 +672,27 @@ mod tests {
             },
         ];
         assert_eq!(value.entries, entries);
+    }
+
+    #[test]
+    fn test_ignored_file_in_untracked_directory() {
+        // It looks like if one places a .gitignore in an untracked directory, git still obeys it.
+        let temp_dir = TempDir::default();
+        let index = test_repo(&temp_dir, &vec![Path::new("simple_file.txt")]);
+
+        for name in vec!["a/nested/dir/ignored.txt", "a/.gitignore"] {
+            let file = temp_dir.join(name);
+            fs::create_dir_all(file.parent().unwrap()).unwrap();
+            fs::write(&file, "ignored*").unwrap();
+        }
+
+        // Need to ignore the created ignore file
+        let root_ignore = temp_dir.join(".gitignore");
+        fs::create_dir_all(root_ignore.parent().unwrap()).unwrap();
+        fs::write(&root_ignore, ".gitignore").unwrap();
+
+        let value = WorkTree::diff_against_index(&temp_dir, index).unwrap();
+
+        assert_eq!(value.entries, vec![]);
     }
 }

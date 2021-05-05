@@ -34,24 +34,18 @@ since the functional progress is taking a bit.
 > of Rust.
 
 Currently ``win-git-status.exe`` will produce a message similar to ``git status``
-Note: The repo directory needs to be specified, and it can be anywhere.
 
 For example one could do:
 
-    win-git-status.exe .
+    win-git-status.exe
 
 This currently doesn't handle significant features like:
  - info/exclude file
- - ignore files are implemented but they should be optimized, 
-   currently they are being re-read on every untracked file.
  - merge states
  - rebase states
  - cherry-pick states
  - bisect state
  - rename detection
- - submodules will notice changes, but don't provide nice hints like 
-   (new commit, modified content, new content)
- - colorized output
     
 ### Performance
 For repos without submodules ``win-git-status`` currently does not perform as well as 
@@ -63,7 +57,7 @@ Running on this repo:
 
 Running on [llvm-project](https://github.com/llvm/llvm-project/commit/0f9f0a4046e11c2b4c130640f343e3b2b5db08c1)
 - 0.335s for ``git status``
-- 0.775 for ``win-git-status.exe``
+- 0.495s for ``win-git-status.exe``
 
 For repos with submodules ``win-git-status.exe`` can be up to 6-7x faster at times.
 For one proprietary repo:
@@ -72,6 +66,6 @@ For one proprietary repo:
 
 For another proprietary repo:
 - 5.9s for ``git status``
-- 0.8s for ``win-git-status.exe``
+- 0.5s for ``win-git-status.exe``
 
 

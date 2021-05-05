@@ -172,7 +172,7 @@ impl Index {
         let parent_path = full_path.parent().unwrap().to_str().unwrap();
         let name = full_path.file_name().unwrap().to_str().unwrap().to_string();
         let entry = DirEntry {
-            stat: FileStat { size, mtime },
+            stat: FileStat { mtime, size },
             sha: sha.try_into().unwrap(),
             name,
             object_type,
