@@ -12,7 +12,7 @@ use std::fmt;
 pub enum Status {
     Current,
     New,
-    Modified,
+    Modified(Option<String>),
     Deleted,
 }
 impl Default for Status {
@@ -25,9 +25,14 @@ impl fmt::Display for Status {
         match *self {
             Status::Current => fmt.write_str(""),
             Status::New => fmt.write_str("new file:   "),
-            Status::Modified => fmt.write_str("modified:   "),
+            Status::Modified(_) => fmt.write_str("modified:   "),
             Status::Deleted => fmt.write_str("deleted:    "),
         }
+    }
+}
+impl Status {
+    pub fn is_modified(&self) -> bool {
+        matches!(*self, Status::Modified(_))
     }
 }
 

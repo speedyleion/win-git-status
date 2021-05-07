@@ -351,22 +351,33 @@ fn submodule_spawned_status(
     let work_tree_diff = WorkTree::diff_against_index(workdir, index).unwrap();
     let index_diff = TreeDiff::diff_against_index_with_repo(&repo);
 
-    // This isn't quite true, but close enough for now
-    let modified_content = !index_diff.entries.is_empty();
-    let untracked_content = !work_tree_diff.entries.is_empty();
+    let mut messages = vec![];
+    let oid = repo.head().unwrap().peel_to_commit().unwrap().id();
+    let commit_sha = oid.as_bytes();
 
-    let new_commits = index_sha
-        != repo
-            .head()
-            .unwrap()
-            .peel_to_commit()
-            .unwrap()
-            .id()
-            .as_bytes();
-    if modified_content || untracked_content || new_commits {
+    if index_sha != commit_sha {
+        messages.push("new commits");
+    }
+
+    let modified = !index_diff.entries.is_empty()
+        || work_tree_diff.entries.iter().any(|e| e.state.is_modified());
+    if modified {
+        messages.push("modified content");
+    }
+
+    let untracked = work_tree_diff
+        .entries
+        .iter()
+        .any(|e| e.state == Status::New);
+    if untracked {
+        messages.push("untracked content");
+    }
+
+    if !messages.is_empty() {
+        let message = messages.join(", ");
         changed_files.lock().unwrap().push(StatusEntry {
             name,
-            state: Status::Modified,
+            state: Status::Modified(Some(message)),
         });
     }
 }
@@ -388,7 +399,7 @@ fn process_tracked_item(
         let name = get_relative_entry_path_name(dir_entry);
         return Some(StatusEntry {
             name,
-            state: Status::Modified,
+            state: Status::Modified(None),
         });
     }
     None
@@ -449,7 +460,7 @@ mod tests {
         let value = WorkTree::diff_against_index(&temp_dir, index).unwrap();
         let entries = vec![StatusEntry {
             name: entry_name.to_string(),
-            state: Status::Modified,
+            state: Status::Modified(None),
         }];
         assert_eq!(value.entries, entries);
     }
@@ -464,7 +475,7 @@ mod tests {
         let value = WorkTree::diff_against_index(&temp_dir, index).unwrap();
         let entries = vec![StatusEntry {
             name: entry_name.to_string(),
-            state: Status::Modified,
+            state: Status::Modified(None),
         }];
         assert_eq!(value.entries, entries);
     }
@@ -486,7 +497,7 @@ mod tests {
         let value = WorkTree::diff_against_index(&temp_dir, index).unwrap();
         let entries = vec![StatusEntry {
             name: "dir_1/dir_2/dir_3/file.txt".to_string(),
-            state: Status::Modified,
+            state: Status::Modified(None),
         }];
         assert_eq!(value.entries, entries);
     }
@@ -645,7 +656,7 @@ mod tests {
             },
             StatusEntry {
                 name: "foo/.gitignore".to_string(),
-                state: Status::Modified,
+                state: Status::Modified(None),
             },
             StatusEntry {
                 name: "foo/ignored.txt".to_string(),

@@ -61,7 +61,7 @@ fn submodule_with_new_file() {
     let value = WorkTree::diff_against_index(&super_repo, index).unwrap();
     let entries = vec![StatusEntry {
         name: "sub_repo_dir".to_string(),
-        state: Status::Modified,
+        state: Status::Modified(Some(String::from("untracked content"))),
     }];
 
     assert_eq!(value.entries, entries);
@@ -91,7 +91,7 @@ fn submodule_with_modified_files() {
     let value = WorkTree::diff_against_index(&super_repo, index).unwrap();
     let entries = vec![StatusEntry {
         name: "sub_repo_dir".to_string(),
-        state: Status::Modified,
+        state: Status::Modified(Some(String::from("modified content"))),
     }];
 
     assert_eq!(value.entries, entries);
@@ -123,7 +123,7 @@ fn submodule_with_staged_files() {
     let value = WorkTree::diff_against_index(&super_repo, index).unwrap();
     let entries = vec![StatusEntry {
         name: "sub_repo_dir".to_string(),
-        state: Status::Modified,
+        state: Status::Modified(Some(String::from("modified content"))),
     }];
 
     assert_eq!(value.entries, entries);
@@ -157,7 +157,7 @@ fn submodule_with_new_commits() {
     let value = WorkTree::diff_against_index(&super_repo, index).unwrap();
     let entries = vec![StatusEntry {
         name: "sub_repo_dir".to_string(),
-        state: Status::Modified,
+        state: Status::Modified(Some(String::from("new commits"))),
     }];
 
     assert_eq!(value.entries, entries);
@@ -187,22 +187,79 @@ fn worktree_diff_with_submodule_removed() {
     assert_eq!(value.entries, vec![]);
 }
 
-//  Behaviour needed for submodules
-//
-//  modified:   <red>sub_repo_dir</red> (untracked content)
-//      Has an untracked file.
-//
-//  modified:   <red>sub_repo_dir</red> (new commits)
-//      has a different commit, can be newer or older doesn't matter
-//
-//  modified:   <red>sub_repo_dir</red> (modified content)
-//      has a changed file in the working tree, or has a staged file
-//
-//  modified:   <red>sub_repo_dir</red> (new commits, untracked content)
-//      has a different commit and an untracked file
-//
-//  modified:   <red>sub_repo_dir</red> (new commits, modified content)
-//      has a different commit and a modified file
-//
-//  modified:   <red>sub_repo_dir</red> (new commits, modified content, untracked content)
-//      has a different commit, a modified file, and an untracked file
+#[test]
+fn submodule_with_new_file_and_modified_file() {
+    let temp = TempDir::default().permanent();
+    let super_repo = temp.join("super_repo");
+    let names = vec!["a_file.txt", "another.md", "what.log"];
+    let files = names.iter().map(|n| Path::new(n)).collect();
+    common::test_repo(&super_repo, files);
+
+    let sub_repo = temp.join("sub_repo");
+    let sub_names = vec!["a_sub_file.md", "sure.c"];
+    let sub_files = sub_names.iter().map(|n| Path::new(n)).collect();
+    common::test_repo(&sub_repo, sub_files);
+
+    common::add_submodule(&super_repo, sub_repo.to_str().unwrap(), "sub_repo_dir");
+
+    let new_sub_repo_file = super_repo.join("sub_repo_dir/new_file.txt");
+    fs::write(&new_sub_repo_file, "stuff").unwrap();
+
+    let modified_sub_repo_file = super_repo.join("sub_repo_dir/sure.c");
+    fs::write(&modified_sub_repo_file, "some modified stuff").unwrap();
+
+    let index_file = super_repo.join(".git/index");
+    let index = Index::new(&index_file).unwrap();
+
+    let value = WorkTree::diff_against_index(&super_repo, index).unwrap();
+    let entries = vec![StatusEntry {
+        name: "sub_repo_dir".to_string(),
+        state: Status::Modified(Some(String::from("modified content, untracked content"))),
+    }];
+
+    assert_eq!(value.entries, entries);
+}
+
+#[test]
+fn submodule_with_new_commits_staged_files_and_untracked_file() {
+    let temp = TempDir::default().permanent();
+    let super_repo = temp.join("super_repo");
+    let names = vec!["a_file.txt", "another.md", "what.log"];
+    let files = names.iter().map(|n| Path::new(n)).collect();
+    common::test_repo(&super_repo, files);
+
+    let sub_repo_name = temp.join("sub_repo");
+    let sub_names = vec!["a_sub_file.md", "sure.c"];
+    let sub_files = sub_names.iter().map(|n| Path::new(n)).collect();
+    common::test_repo(&sub_repo_name, sub_files);
+
+    common::add_submodule(&super_repo, sub_repo_name.to_str().unwrap(), "sub_repo_dir");
+
+    let modified_sub_repo_file = super_repo.join("sub_repo_dir/sure.c");
+    fs::write(&modified_sub_repo_file, "some modified stuff").unwrap();
+    let sub_repo = Repository::open(super_repo.join("sub_repo_dir")).unwrap();
+    let local_file_path = Path::new("sure.c");
+    common::stage_file(&sub_repo, &local_file_path);
+    common::commit_file(&sub_repo, &local_file_path);
+
+    let modified_sub_repo_file = super_repo.join("sub_repo_dir/a_sub_file.md");
+    fs::write(&modified_sub_repo_file, "whatever we want").unwrap();
+    let sub_repo = Repository::open(super_repo.join("sub_repo_dir")).unwrap();
+    common::stage_file(&sub_repo, Path::new("a_sub_file.md"));
+
+    let new_sub_repo_file = super_repo.join("sub_repo_dir/new_file.txt");
+    fs::write(&new_sub_repo_file, "stuff").unwrap();
+
+    let index_file = super_repo.join(".git/index");
+    let index = Index::new(&index_file).unwrap();
+
+    let value = WorkTree::diff_against_index(&super_repo, index).unwrap();
+    let entries = vec![StatusEntry {
+        name: "sub_repo_dir".to_string(),
+        state: Status::Modified(Some(String::from(
+            "new commits, modified content, untracked content",
+        ))),
+    }];
+
+    assert_eq!(value.entries, entries);
+}

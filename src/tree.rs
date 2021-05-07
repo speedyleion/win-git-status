@@ -43,7 +43,7 @@ impl TreeDiff {
     fn git2_status_to_treediff_status(status: git2::Status) -> Status {
         match status {
             git2::Status::INDEX_NEW => Status::New,
-            git2::Status::INDEX_MODIFIED => Status::Modified,
+            git2::Status::INDEX_MODIFIED => Status::Modified(None),
             git2::Status::INDEX_DELETED => Status::Deleted,
             _ => panic!("Unsupported index status {:?}", status),
         }
@@ -120,7 +120,7 @@ mod tests {
             TreeDiff {
                 entries: vec![StatusEntry {
                     name: names[0].to_string(),
-                    state: Status::Modified
+                    state: Status::Modified(None)
                 }]
             }
         );

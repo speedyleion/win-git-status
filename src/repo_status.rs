@@ -6,7 +6,7 @@
  */
 
 use crate::error::StatusError;
-use crate::status::Status;
+use crate::status::{Status, StatusEntry};
 use crate::{Index, TreeDiff, WorkTree};
 use git2::{Repository, RepositoryState};
 use indoc::formatdoc;
@@ -247,35 +247,37 @@ impl RepoStatus {
     }
 
     fn write_unstaged_message<W: WriteColor + Write>(&self, writer: &mut W) -> bool {
-        let unstaged_files: Vec<String> = self
+        let unstaged_files: Vec<&StatusEntry> = self
             .work_tree_diff
             .entries
             .iter()
             .filter(|e| e.state != Status::New)
-            .map(|e| e.to_string())
             .collect();
         if unstaged_files.is_empty() {
             return false;
         }
-        let files = unstaged_files
-            .iter()
-            .map(|s| &**s)
-            .collect::<Vec<&str>>()
-            .join("\n        ");
         let message = formatdoc! {"\
             Changes not staged for commit:
               (use \"git add <file>...\" to update what will be committed)
-              (use \"git restore <file>...\" to discard changes in working directory)
-                    "};
+              (use \"git restore <file>...\" to discard changes in working directory)"};
 
         writer.write_all(message.as_bytes()).unwrap();
 
         let mut color_spec = ColorSpec::new();
-        color_spec.set_fg(Some(self.get_color(StatusColorSlot::Changed)));
+        let changed_color = Some(self.get_color(StatusColorSlot::Changed));
+        color_spec.set_fg(changed_color);
         writer.set_color(&color_spec).unwrap();
-        writer.write_all(files.as_bytes()).unwrap();
+        for file in unstaged_files {
+            let modified_line = format! {"\n        {}", file.to_string()};
+            writer.write_all(modified_line.as_bytes()).unwrap();
+            if let Status::Modified(Some(message)) = &file.state {
+                writer.reset().unwrap();
+                let info = format! {" ({})", message};
+                writer.write_all(info.as_bytes()).unwrap();
+                writer.set_color(&color_spec).unwrap();
+            }
+        }
         writer.reset().unwrap();
-
         writer.write_all(b"\n\n").unwrap();
         true
     }
@@ -401,7 +403,7 @@ impl RepoStatus {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use git2::{BranchType, Commit, Repository, Signature, Time};
+    use git2::{BranchType, Commit, Repository, Signature, SubmoduleUpdateOptions, Time};
     use indoc::indoc;
     use std::fs;
     use temp_testdir::TempDir;
@@ -491,6 +493,32 @@ mod tests {
         .unwrap();
     }
 
+    fn add_submodule(path: &Path, submodule_url: &str, submodule_path: &str) -> () {
+        let repo = Repository::init(path).unwrap();
+        let mut submodule = repo
+            .submodule(submodule_url, Path::new(submodule_path), true)
+            .unwrap();
+        let mut submodule_options = SubmoduleUpdateOptions::new();
+        submodule.clone(Some(&mut submodule_options)).unwrap();
+        submodule.add_finalize().unwrap();
+
+        let mut index = repo.index().unwrap();
+        index.write().unwrap();
+        let tree_oid = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree_oid).unwrap();
+        let signature = Signature::new("Tucan", "me@me.com", &Time::new(20, 0)).unwrap();
+        let head = repo.head().unwrap().target().unwrap();
+        let head = repo.find_commit(head).unwrap();
+        repo.commit(
+            Option::from("HEAD"),
+            &signature,
+            &signature,
+            "Adding submodule",
+            &tree,
+            &[&head],
+        )
+        .unwrap();
+    }
     #[test]
     fn test_branch_name() {
         let temp_dir = TempDir::default();
@@ -820,6 +848,44 @@ mod tests {
                     modified:   one
                     deleted:    three
                     modified:   two
+
+            "};
+
+        let mut writer = Buffer::no_color();
+        assert_eq!(status.write_unstaged_message(&mut writer), true);
+        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), expected);
+    }
+
+    #[test]
+    fn submodule_with_modified_files() {
+        let file_names = vec!["one", "two", "three", "four"];
+        let files = file_names.iter().map(|n| Path::new(n)).collect();
+        let temp = TempDir::default();
+        let super_repo = temp.join("super_repo");
+        let repo = test_repo(super_repo.to_str().unwrap(), &files);
+
+        let sub_repo = temp.join("sub_repo");
+        let sub_names = vec!["a_sub_file.md", "sure.c"];
+        let sub_files = sub_names.iter().map(|n| Path::new(n)).collect();
+        let sub_repo = test_repo(sub_repo.to_str().unwrap(), &sub_files);
+
+        add_submodule(
+            &super_repo.join("main"),
+            sub_repo.workdir().unwrap().to_str().unwrap(),
+            "sub_repo_dir",
+        );
+
+        let workdir = repo.workdir().unwrap();
+        let modified_sub_repo_file = workdir.join("sub_repo_dir/sure.c");
+        fs::write(&modified_sub_repo_file, "some modified stuff").unwrap();
+
+        let status = RepoStatus::new(&workdir).unwrap();
+
+        let expected = indoc! {"\
+            Changes not staged for commit:
+              (use \"git add <file>...\" to update what will be committed)
+              (use \"git restore <file>...\" to discard changes in working directory)
+                    modified:   sub_repo_dir (modified content)
 
             "};
 
