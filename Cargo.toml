@@ -8,18 +8,11 @@ edition = "2018"
 [dependencies]
 nom = "6.0.1"
 ignore = "0.4"
-sha-1 = "0.9"
 pathdiff = "0.2.0"
-ntapi = "0.3.6"
-memoffset = "0.6.1"
 git2 = "0.13"
 indoc = "1.0"
 rayon = "1.5.0"
 termcolor = "1.1.2"
-
-[dependencies.winapi]
-version = "0.3.9"
-features = ["fileapi", "winbase"]
 
 [dev-dependencies]
 temp_testdir = "0.2"
