@@ -101,6 +101,17 @@ impl RepoStatus {
         })
     }
 
+    pub fn write_short_message<W: WriteColor + Write>(
+        &self,
+        writer: &mut W,
+    ) -> Result<(), StatusError> {
+        self.check_repo_state()?;
+        self.write_short_staged(writer);
+        self.write_short_unstaged(writer);
+        self.write_short_untracked(writer);
+        Ok(())
+    }
+
     pub fn write_long_message<W: WriteColor + Write>(
         &self,
         writer: &mut W,
@@ -397,6 +408,72 @@ impl RepoStatus {
                 unsupported_state
             ),
         })
+    }
+    fn write_short_staged<W: WriteColor + Write>(&self, writer: &mut W) {
+        if self.index_diff.entries.is_empty() {
+            return;
+        }
+
+        let mut color_spec = ColorSpec::new();
+        let staged_color = Some(self.get_color(StatusColorSlot::Added));
+        color_spec.set_fg(staged_color);
+        for file in &self.index_diff.entries {
+            writer.set_color(&color_spec).unwrap();
+            writer
+                .write_all(file.state.short_status_string().as_bytes())
+                .unwrap();
+            writer.write_all(b"  ").unwrap();
+            writer.reset().unwrap();
+            writer.write_all(file.name.as_bytes()).unwrap();
+            writer.write_all(b"\n").unwrap();
+        }
+    }
+    fn write_short_unstaged<W: WriteColor + Write>(&self, writer: &mut W) {
+        let unstaged_files: Vec<&StatusEntry> = self
+            .work_tree_diff
+            .entries
+            .iter()
+            .filter(|e| e.state != Status::New)
+            .collect();
+        if unstaged_files.is_empty() {
+            return;
+        }
+        let mut color_spec = ColorSpec::new();
+        let unstaged_color = Some(self.get_color(StatusColorSlot::Changed));
+        color_spec.set_fg(unstaged_color);
+        for file in unstaged_files {
+            writer.set_color(&color_spec).unwrap();
+            writer.write_all(b" ").unwrap();
+            writer
+                .write_all(file.state.short_status_string().as_bytes())
+                .unwrap();
+            writer.write_all(b" ").unwrap();
+            writer.reset().unwrap();
+            writer.write_all(file.name.as_bytes()).unwrap();
+            writer.write_all(b"\n").unwrap();
+        }
+    }
+
+    fn write_short_untracked<W: WriteColor + Write>(&self, writer: &mut W) {
+        let untracked_files: Vec<&StatusEntry> = self
+            .work_tree_diff
+            .entries
+            .iter()
+            .filter(|e| e.state == Status::New)
+            .collect();
+        if untracked_files.is_empty() {
+            return;
+        }
+        let mut color_spec = ColorSpec::new();
+        let untracked_color = Some(self.get_color(StatusColorSlot::Untracked));
+        color_spec.set_fg(untracked_color);
+        for file in untracked_files {
+            writer.set_color(&color_spec).unwrap();
+            writer.write_all(b"?? ").unwrap();
+            writer.reset().unwrap();
+            writer.write_all(file.name.as_bytes()).unwrap();
+            writer.write_all(b"\n").unwrap();
+        }
     }
 }
 
@@ -1206,6 +1283,64 @@ mod tests {
         let color = status.get_color(StatusColorSlot::NoBranch);
 
         assert_eq!(color, Color::White);
+    }
+
+    #[test]
+    fn short_message_file_added_to_index() {
+        let file_names = vec!["one", "two", "three", "four"];
+        let files = file_names.iter().map(|n| Path::new(n)).collect();
+        let temp_dir = TempDir::default();
+        let repo = test_repo(temp_dir.to_str().unwrap(), &files);
+
+        let new_file = Path::new("a_new_file");
+        write_to_file(&repo, new_file, "stuff");
+        stage_file(&repo, new_file);
+
+        let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
+
+        let expected = indoc! {"\
+            A  a_new_file
+            "};
+        let mut writer = Buffer::no_color();
+        status.write_short_staged(&mut writer);
+        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), expected);
+    }
+
+    #[test]
+    fn short_message_two_modified_files() {
+        let file_names = vec!["one/nested/a/bit.txt", "two", "three", "four"];
+        let files = file_names.iter().map(|n| Path::new(n)).collect();
+        let temp_dir = TempDir::default();
+        let repo = test_repo(temp_dir.to_str().unwrap(), &files);
+
+        write_to_file(&repo, files[0], "what???");
+        write_to_file(&repo, files[3], "what???");
+
+        let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
+
+        let expected = " M four\n M one/nested/a/bit.txt\n";
+        let mut writer = Buffer::no_color();
+        status.write_short_unstaged(&mut writer);
+        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), expected);
+    }
+
+    #[test]
+    fn short_untracked_file() {
+        let file_names = vec!["one", "two", "three", "four"];
+        let files = file_names.iter().map(|n| Path::new(n)).collect();
+        let temp_dir = TempDir::default();
+        let repo = test_repo(temp_dir.to_str().unwrap(), &files);
+
+        write_to_file(&repo, Path::new("some_new_file"), "stuff");
+
+        let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
+
+        let expected = indoc! {"\
+            ?? some_new_file
+            "};
+        let mut writer = Buffer::no_color();
+        status.write_short_untracked(&mut writer);
+        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), expected);
     }
 }
 

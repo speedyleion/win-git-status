@@ -34,6 +34,14 @@ impl Status {
     pub fn is_modified(&self) -> bool {
         matches!(*self, Status::Modified(_))
     }
+    pub fn short_status_string(&self) -> &str {
+        match *self {
+            Status::Current => " ",
+            Status::New => "A",
+            Status::Modified(_) => "M",
+            Status::Deleted => "D",
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, Debug, Default, Clone)]

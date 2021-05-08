@@ -38,6 +38,11 @@ Currently ``win-git-status.exe`` will produce a message similar to ``git status`
 For example one could do:
 
     win-git-status.exe
+    
+The ``--short`` flag is also partially supported.  The supported short format is
+simpler implementation than the standard git version.  It lacks combining 
+files that are both staged and have unstaged changes into one line.  Submodules
+will be treated as modified if there is any difference.
 
 This currently doesn't handle significant features like:
  - info/exclude file
@@ -53,7 +58,7 @@ For repos without submodules ``win-git-status`` currently does not perform as we
 
 Running on this repo:
 - 0.044s for ``git status``
-- 0.055s for ``win-git-status.exe .``
+- 0.055s for ``win-git-status.exe``
 
 Running on [llvm-project](https://github.com/llvm/llvm-project/commit/0f9f0a4046e11c2b4c130640f343e3b2b5db08c1)
 - 0.335s for ``git status``

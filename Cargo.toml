@@ -13,6 +13,7 @@ git2 = "0.13"
 indoc = "1.0"
 rayon = "1.5.0"
 termcolor = "1.1.2"
+clap = "2.33.3"
 
 [dev-dependencies]
 temp_testdir = "0.2"
