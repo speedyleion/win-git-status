@@ -330,8 +330,11 @@ fn submodule_status(
     read_dir_state: &ReadWorktreeState,
     scope: &rayon::Scope,
 ) {
-    let name = get_relative_entry_path_name(dir_entry);
     let path = dir_entry.path();
+    if path.read_dir().unwrap().next().is_none() {
+        return;
+    }
+    let name = get_relative_entry_path_name(dir_entry);
     let sha = index_entry.sha.to_vec();
     let changed_clone = Arc::clone(&read_dir_state.changed_files);
     scope.spawn(move |_s| {

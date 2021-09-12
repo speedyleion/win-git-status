@@ -263,3 +263,30 @@ fn submodule_with_new_commits_staged_files_and_untracked_file() {
 
     assert_eq!(value.entries, entries);
 }
+
+#[test]
+fn submodule_not_cloned_yet() {
+    let temp = TempDir::default().permanent();
+    let super_repo = temp.join("super_repo");
+    let names = vec!["a_file.txt", "another.md", "what.log"];
+    let files = names.iter().map(|n| Path::new(n)).collect();
+    common::test_repo(&super_repo, files);
+
+    let sub_repo_name = temp.join("sub_repo");
+    let sub_names = vec!["a_sub_file.md", "sure.c"];
+    let sub_files = sub_names.iter().map(|n| Path::new(n)).collect();
+    common::test_repo(&sub_repo_name, sub_files);
+
+    common::add_submodule(&super_repo, sub_repo_name.to_str().unwrap(), "sub_repo_dir");
+
+    // Remove the actual sub-repo dir from the parent
+    let sub_repo_path = super_repo.join("sub_repo_dir");
+    fs::remove_dir_all(&sub_repo_path).unwrap();
+    fs::create_dir(&sub_repo_path).unwrap();
+
+    let index_file = super_repo.join(".git/index");
+    let index = Index::new(&index_file).unwrap();
+
+    let value = WorkTree::diff_against_index(&super_repo, index).unwrap();
+    assert_eq!(value.entries, vec![]);
+}
