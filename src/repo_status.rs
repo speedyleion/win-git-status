@@ -92,7 +92,7 @@ impl RepoStatus {
         let workdir = repo.workdir().unwrap();
         let (work_tree_diff, index_diff) = rayon::join(
             || WorkTree::diff_against_index(workdir, index).unwrap(),
-            || TreeDiff::diff_against_index(&path),
+            || TreeDiff::diff_against_index(path),
         );
         Ok(RepoStatus {
             repo,

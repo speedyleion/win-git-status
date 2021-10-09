@@ -281,7 +281,7 @@ fn is_ignored(entry: &mut ReadDirEntry, name: &str, ignores: &[Arc<Gitignore>]) 
         let path = entry.path();
         let root = path.ancestors().nth(entry.depth).unwrap();
         let ignores = ignores.to_vec();
-        return !directory_has_one_trackable_file(&root, &path, ignores);
+        return !directory_has_one_trackable_file(root, &path, ignores);
     }
     false
 }

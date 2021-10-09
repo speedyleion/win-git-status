@@ -104,7 +104,7 @@ impl Index {
         let (mut contents, header) = Index::read_header(&buffer)?;
         let mut entries = HashMap::new();
         for _ in 0..header.entries {
-            let (local_contents, (directory, entry)) = Index::read_entry(&contents)?;
+            let (local_contents, (directory, entry)) = Index::read_entry(contents)?;
             let directory_entry = Index::get_directory_entry(&directory, &mut entries);
             directory_entry.push(entry);
             contents = local_contents;
