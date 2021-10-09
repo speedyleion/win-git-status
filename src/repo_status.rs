@@ -8,7 +8,7 @@
 use crate::error::StatusError;
 use crate::status::{Status, StatusEntry};
 use crate::{Index, TreeDiff, WorkTree};
-use git2::{Repository, RepositoryState};
+use git2::{Oid, Repository, RepositoryState};
 use indoc::formatdoc;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
@@ -167,27 +167,29 @@ impl RepoStatus {
     }
 
     fn write_remote_branch_difference_message<W: WriteColor + Write>(&self, writer: &mut W) {
-        let branch_name = self.branch_name();
-        let branch_name = match branch_name {
+        let name = match self.upstream_branch_name() {
             Some(name) => name,
             None => return,
         };
-        let name = match self.repo.branch_upstream_name(&branch_name) {
-            Err(_e) => return,
-            Ok(name) => name,
+
+        let short_name = name.strip_prefix("refs/remotes/").unwrap();
+
+        let upstream_oid = match self.get_oid(&name) {
+            Some(oid) => oid,
+            None => {
+                let message = formatdoc! {"\
+                    Your branch is based on '{branch}', but the upstream is gone.
+                     (use \"git branch --unset-upstream\" to fixup)", branch=short_name};
+                writer.write_all(message.as_bytes()).unwrap();
+                writer.write_all(b"\n\n").unwrap();
+                return;
+            }
         };
-        let short_name = name
-            .as_str()
-            .unwrap()
-            .strip_prefix("refs/remotes/")
-            .unwrap();
 
         let head = self.repo.head().unwrap();
         let head_commit = head.peel_to_commit().unwrap();
         let local_oid = head_commit.id();
-        let upstream_ref = self.repo.find_reference(name.as_str().unwrap()).unwrap();
-        let upstream_commit = upstream_ref.peel_to_commit().unwrap();
-        let upstream_oid = upstream_commit.id();
+
         let (before, after) = self
             .repo
             .graph_ahead_behind(local_oid, upstream_oid)
@@ -236,6 +238,16 @@ impl RepoStatus {
         }
         writer.write_all(message.as_bytes()).unwrap();
         writer.write_all(b"\n\n").unwrap();
+    }
+
+    fn upstream_branch_name(&self) -> Option<String> {
+        match self.branch_name() {
+            None => None,
+            Some(branch_name) => match self.repo.branch_upstream_name(&branch_name) {
+                Err(_e) => None,
+                Ok(name) => Some(name.as_str().unwrap().to_string()),
+            },
+        }
     }
 
     fn get_detached_message<W: WriteColor + Write>(&self, writer: &mut W) {
@@ -473,6 +485,16 @@ impl RepoStatus {
             writer.reset().unwrap();
             writer.write_all(file.name.as_bytes()).unwrap();
             writer.write_all(b"\n").unwrap();
+        }
+    }
+
+    fn get_oid(&self, reference_name: &str) -> Option<Oid> {
+        match self.repo.find_reference(reference_name) {
+            Err(_) => None,
+            Ok(reference) => {
+                let commit = reference.peel_to_commit().unwrap();
+                Some(commit.id())
+            }
         }
     }
 }
@@ -1342,11 +1364,25 @@ mod tests {
         status.write_short_untracked(&mut writer);
         assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), expected);
     }
-}
 
-// Need test for the upstream branch is gone, currently panics
-//
-//      On branch colors
-//      Your branch is based on 'origin/colors', but the upstream is gone.
-//        (use "git branch --unset-upstream" to fixup)
-//
+    #[test]
+    fn test_upstream_branch_tip_gone() {
+        let file_names = vec!["one", "two", "three", "four"];
+        let files = file_names.iter().map(|n| Path::new(n)).collect();
+        let temp_dir = TempDir::default();
+        let repo = test_repo(temp_dir.to_str().unwrap(), &files);
+
+        let mut remote_branch = repo.find_branch("origin/tip", BranchType::Remote).unwrap();
+        remote_branch.delete().unwrap();
+
+        let status = RepoStatus::new(repo.workdir().unwrap()).unwrap();
+        let mut writer = Buffer::no_color();
+        status.write_remote_branch_difference_message(&mut writer);
+        let expected = indoc! {"\
+            Your branch is based on 'origin/tip', but the upstream is gone.
+             (use \"git branch --unset-upstream\" to fixup)
+
+            "};
+        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), expected);
+    }
+}
