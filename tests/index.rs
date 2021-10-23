@@ -34,7 +34,7 @@ fn index_has_three_entries_in_order() {
     assert_eq!(index.entries.len(), 1);
     let dir_list = index.entries.get("").unwrap();
     let index_names: Vec<&String> = dir_list.iter().map(|e| &e.name).collect();
-    names.sort();
+    names.sort_unstable();
     assert_eq!(index_names, names);
 }
 
@@ -48,7 +48,7 @@ fn index_has_nested_entries_in_order() {
     let index = Index::new(&index_file).unwrap();
 
     let mut file_map = HashMap::new();
-    names.sort();
+    names.sort_unstable();
     for file in names.iter().map(|n| Path::new(n)) {
         let entry = file_map
             .entry(file.parent().unwrap().to_str().unwrap())

@@ -18,7 +18,7 @@ pub fn test_repo(path: &Path, files: Vec<&Path>) -> Repository {
         // Done this way to support nested files
         fs::create_dir_all(full_path.parent().unwrap()).unwrap();
         fs::write(&full_path, file.to_str().unwrap()).unwrap();
-        index.add_path(&file).unwrap();
+        index.add_path(file).unwrap();
     }
     index.write().unwrap();
     let tree_oid = index.write_tree().unwrap();
@@ -39,7 +39,7 @@ pub fn test_repo(path: &Path, files: Vec<&Path>) -> Repository {
     repo
 }
 
-pub fn add_submodule(path: &Path, submodule_url: &str, submodule_path: &str) -> () {
+pub fn add_submodule(path: &Path, submodule_url: &str, submodule_path: &str) {
     let repo = Repository::init(path).unwrap();
     let mut submodule = repo
         .submodule(submodule_url, Path::new(submodule_path), true)
@@ -77,7 +77,7 @@ pub fn write_to_file(repo: &Repository, file: &Path, contents: &str) {
 
 pub fn stage_file(repo: &Repository, file: &Path) {
     let mut index = repo.index().unwrap();
-    index.add_path(&file).unwrap();
+    index.add_path(file).unwrap();
     index.write().unwrap();
 }
 
@@ -93,7 +93,7 @@ pub fn commit_file(repo: &Repository, file: &Path) {
         Err(_) => vec![],
         _ => vec![head.unwrap().peel_to_commit().unwrap()],
     };
-    let parents: Vec<&Commit> = _parents.iter().map(|n| n).collect();
+    let parents: Vec<&Commit> = _parents.iter().collect();
     let message = "Commiting file: ".to_string() + file.to_str().unwrap();
     repo.commit(
         Option::from("HEAD"),

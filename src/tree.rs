@@ -58,19 +58,19 @@ mod tests {
     use temp_testdir::TempDir;
 
     // stage a file change so that the index version of a file differs from a tree version.
-    pub fn stage_file(repo_path: &str, file: &Path) -> () {
+    pub fn stage_file(repo_path: &str, file: &Path) {
         let repo = Repository::open(repo_path).unwrap();
         let mut index = repo.index().unwrap();
         let root = repo.path().parent().unwrap();
         let full_path = root.join(file);
         fs::create_dir_all(full_path.parent().unwrap()).unwrap();
         fs::write(&full_path, "staged changes").unwrap();
-        index.add_path(&file).unwrap();
+        index.add_path(file).unwrap();
         index.write().unwrap();
     }
 
     // Create a test repo to be able to compare the index to the working tree.
-    pub fn test_repo(path: &str, files: &Vec<&Path>) -> () {
+    pub fn test_repo(path: &str, files: &Vec<&Path>) {
         let repo = Repository::init(path).unwrap();
         let mut index = repo.index().unwrap();
         let root = repo.path().parent().unwrap();
@@ -80,7 +80,7 @@ mod tests {
             // Done this way to support nested files
             fs::create_dir_all(full_path.parent().unwrap()).unwrap();
             fs::write(&full_path, file.to_str().unwrap()).unwrap();
-            index.add_path(&file).unwrap();
+            index.add_path(file).unwrap();
         }
         index.write().unwrap();
         let tree_oid = index.write_tree().unwrap();

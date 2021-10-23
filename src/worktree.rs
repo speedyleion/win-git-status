@@ -14,7 +14,8 @@ use crate::direntry::{DirEntry, FileStat, ObjectType};
 use crate::error::StatusError;
 use crate::status::{Status, StatusEntry};
 use crate::{Index, TreeDiff};
-use git2::Repository;
+use git2;
+use git2::{Oid, Repository};
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use std::fs;
 use std::time::UNIX_EPOCH;
@@ -64,7 +65,7 @@ fn read_dir(
                     .unwrap()
                     .duration_since(UNIX_EPOCH)
                     .unwrap()
-                    .as_secs() as u32,
+                    .as_nanos(),
                 size: metadata.len() as u32,
             },
             parent_path: Arc::clone(&parent_path),
@@ -402,7 +403,9 @@ fn process_tracked_item(
         return None;
     }
 
-    if dir_entry.stat != index_entry.stat {
+    if dir_entry.stat.mtime != index_entry.stat.mtime
+        && (dir_entry.stat.size != index_entry.stat.size || !sha_equal(dir_entry, index_entry))
+    {
         let name = get_relative_entry_path_name(dir_entry);
         return Some(StatusEntry {
             name,
@@ -410,6 +413,11 @@ fn process_tracked_item(
         });
     }
     None
+}
+
+fn sha_equal(dir_entry: &ReadDirEntry, index_entry: &DirEntry) -> bool {
+    let oid = Oid::hash_file(git2::ObjectType::Blob, dir_entry.path()).unwrap();
+    oid.as_bytes() == index_entry.sha
 }
 
 #[cfg(test)]
@@ -430,7 +438,7 @@ mod tests {
             // Done this way to support nested files
             fs::create_dir_all(full_path.parent().unwrap()).unwrap();
             fs::write(&full_path, file.to_str().unwrap()).unwrap();
-            index.add_path(&file).unwrap();
+            index.add_path(file).unwrap();
         }
         index.write().unwrap();
         let tree_oid = index.write_tree().unwrap();
@@ -463,6 +471,8 @@ mod tests {
         let temp_dir = TempDir::default();
         let mut index = test_repo(&temp_dir, &vec![Path::new(entry_name)]);
         let dir_entries = index.entries.get_mut("").unwrap();
+        // A file that is modified in size, will be modified in time too
+        dir_entries[0].stat.mtime += 1;
         dir_entries[0].stat.size += 1;
         let value = WorkTree::diff_against_index(&temp_dir, index).unwrap();
         let entries = vec![StatusEntry {
@@ -479,6 +489,18 @@ mod tests {
         let mut index = test_repo(&temp_dir, &vec![Path::new(entry_name)]);
         let dir_entries = index.entries.get_mut("").unwrap();
         dir_entries[0].stat.mtime += 1;
+        let value = WorkTree::diff_against_index(&temp_dir, index).unwrap();
+        assert_eq!(value.entries, vec![]);
+    }
+
+    #[test]
+    fn test_diff_against_index_a_file_modified_sha_but_same_size() {
+        let entry_name = "simple_file.txt";
+        let temp_dir = TempDir::default();
+        let mut index = test_repo(&temp_dir, &vec![Path::new(entry_name)]);
+        let dir_entries = index.entries.get_mut("").unwrap();
+        dir_entries[0].stat.mtime += 1;
+        dir_entries[0].sha[0] += 1;
         let value = WorkTree::diff_against_index(&temp_dir, index).unwrap();
         let entries = vec![StatusEntry {
             name: entry_name.to_string(),
@@ -500,6 +522,7 @@ mod tests {
         let temp_dir = TempDir::default();
         let mut index = test_repo(&temp_dir, &vec![Path::new("dir_1/dir_2/dir_3/file.txt")]);
         let dir_entries = index.entries.get_mut("dir_1/dir_2/dir_3").unwrap();
+        dir_entries[0].stat.mtime += 1;
         dir_entries[0].stat.size += 1;
         let value = WorkTree::diff_against_index(&temp_dir, index).unwrap();
         let entries = vec![StatusEntry {
@@ -597,7 +620,7 @@ mod tests {
         let temp_dir = TempDir::default();
         let index = test_repo(&temp_dir, &vec![Path::new("simple_file.txt")]);
 
-        for name in vec!["ignored.txt", ".gitignore"] {
+        for name in &["ignored.txt", ".gitignore"] {
             let file = temp_dir.join(name);
             fs::create_dir_all(file.parent().unwrap()).unwrap();
             fs::write(&file, "ignore*").unwrap();
@@ -618,7 +641,7 @@ mod tests {
         let temp_dir = TempDir::default();
         let index = test_repo(&temp_dir, &vec![Path::new("simple_file.txt")]);
 
-        for name in vec!["foo/ignored.txt", ".gitignore"] {
+        for name in &["foo/ignored.txt", ".gitignore"] {
             let file = temp_dir.join(name);
             fs::create_dir_all(file.parent().unwrap()).unwrap();
             fs::write(&file, "foo/").unwrap();
@@ -641,7 +664,7 @@ mod tests {
         let files = seed_names.iter().map(|n| Path::new(n)).collect();
         let index = test_repo(&temp_dir, &files);
 
-        for name in vec![
+        for name in &[
             "foo/ignored.txt",
             ".gitignore",
             "bar/always.txt",
@@ -683,7 +706,7 @@ mod tests {
         let temp_dir = TempDir::default();
         let index = test_repo(&temp_dir, &vec![Path::new("simple_file.txt")]);
 
-        for name in vec!["a/nested/dir/ignored.txt", "a/.gitignore"] {
+        for name in &["a/nested/dir/ignored.txt", "a/.gitignore"] {
             let file = temp_dir.join(name);
             fs::create_dir_all(file.parent().unwrap()).unwrap();
             fs::write(&file, "ignored*").unwrap();

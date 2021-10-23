@@ -148,8 +148,8 @@ fn submodule_with_new_commits() {
     fs::write(&modified_sub_repo_file, "some modified stuff").unwrap();
     let sub_repo = Repository::open(super_repo.join("sub_repo_dir")).unwrap();
     let local_file_path = Path::new("sure.c");
-    common::stage_file(&sub_repo, &local_file_path);
-    common::commit_file(&sub_repo, &local_file_path);
+    common::stage_file(&sub_repo, local_file_path);
+    common::commit_file(&sub_repo, local_file_path);
 
     let index_file = super_repo.join(".git/index");
     let index = Index::new(&index_file).unwrap();
@@ -239,8 +239,8 @@ fn submodule_with_new_commits_staged_files_and_untracked_file() {
     fs::write(&modified_sub_repo_file, "some modified stuff").unwrap();
     let sub_repo = Repository::open(super_repo.join("sub_repo_dir")).unwrap();
     let local_file_path = Path::new("sure.c");
-    common::stage_file(&sub_repo, &local_file_path);
-    common::commit_file(&sub_repo, &local_file_path);
+    common::stage_file(&sub_repo, local_file_path);
+    common::commit_file(&sub_repo, local_file_path);
 
     let modified_sub_repo_file = super_repo.join("sub_repo_dir/a_sub_file.md");
     fs::write(&modified_sub_repo_file, "whatever we want").unwrap();

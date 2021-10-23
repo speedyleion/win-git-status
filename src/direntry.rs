@@ -20,7 +20,8 @@ impl Default for ObjectType {
 
 #[derive(PartialEq, Eq, Debug, Default, Clone)]
 pub struct FileStat {
-    pub mtime: u32,
+    // modified time in nanoseconds since the unix epoch
+    pub mtime: u128,
     pub size: u32,
 }
 

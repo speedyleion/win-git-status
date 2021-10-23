@@ -526,12 +526,12 @@ mod tests {
 
         let main_path = path.to_string() + "/main";
         let repo = Repository::clone(&remote_path, &main_path).unwrap();
-        for branch_name in vec!["tip", "half"] {
+        for branch_name in &["tip", "half"] {
             let upstream_name = "origin/".to_string() + branch_name;
             let remote_branch_name = "refs/remotes/".to_string() + &upstream_name;
             repo.set_head(&remote_branch_name).unwrap();
             let commit = repo.head().unwrap().peel_to_commit().unwrap();
-            let mut branch = repo.branch(&branch_name, &commit, false).unwrap();
+            let mut branch = repo.branch(branch_name, &commit, false).unwrap();
             branch.set_upstream(Some(&upstream_name)).unwrap();
         }
         repo.set_head("refs/heads/tip").unwrap();
@@ -547,7 +547,7 @@ mod tests {
         let half = count / 2;
         let mut walker = repo.revwalk().unwrap();
         walker.push(commit.id()).unwrap();
-        let half_oid = walker.skip(half).next().unwrap().unwrap();
+        let half_oid = walker.nth(half).unwrap().unwrap();
         let half_commit = repo.find_commit(half_oid).unwrap();
         repo.branch("half", &half_commit, false).unwrap();
     }
@@ -563,7 +563,7 @@ mod tests {
 
     fn stage_file(repo: &Repository, file: &Path) {
         let mut index = repo.index().unwrap();
-        index.add_path(&file).unwrap();
+        index.add_path(file).unwrap();
         index.write().unwrap();
     }
 
@@ -579,7 +579,7 @@ mod tests {
             Err(_) => vec![],
             _ => vec![head.unwrap().peel_to_commit().unwrap()],
         };
-        let parents: Vec<&Commit> = _parents.iter().map(|n| n).collect();
+        let parents: Vec<&Commit> = _parents.iter().collect();
         let message = "Commiting file: ".to_string() + file.to_str().unwrap();
         repo.commit(
             Option::from("HEAD"),
@@ -592,7 +592,7 @@ mod tests {
         .unwrap();
     }
 
-    fn add_submodule(path: &Path, submodule_url: &str, submodule_path: &str) -> () {
+    fn add_submodule(path: &Path, submodule_url: &str, submodule_path: &str) {
         let repo = Repository::init(path).unwrap();
         let mut submodule = repo
             .submodule(submodule_url, Path::new(submodule_path), true)
@@ -978,7 +978,7 @@ mod tests {
         let modified_sub_repo_file = workdir.join("sub_repo_dir/sure.c");
         fs::write(&modified_sub_repo_file, "some modified stuff").unwrap();
 
-        let status = RepoStatus::new(&workdir).unwrap();
+        let status = RepoStatus::new(workdir).unwrap();
 
         let expected = indoc! {"\
             Changes not staged for commit:
@@ -1042,7 +1042,7 @@ mod tests {
         write_to_file(&repo, new_file, "stuff");
         stage_file(&repo, new_file);
 
-        for file in vec![files[0], files[1]] {
+        for file in &[files[0], files[1]] {
             write_to_file(&repo, file, "what???");
             stage_file(&repo, file);
         }

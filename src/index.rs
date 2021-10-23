@@ -20,6 +20,7 @@ use std::convert::TryInto;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
+use std::time::Duration;
 
 use crate::direntry::{DirEntry, FileStat, ObjectType};
 
@@ -140,11 +141,12 @@ impl Index {
     ///
     ///
     fn read_entry(stream: &[u8]) -> IResult<&[u8], (String, DirEntry)> {
-        let (output, (mtime, mode, size, sha, full_name)) = do_parse!(
+        let (output, (mtime_s, mtime_ns, mode, size, sha, full_name)) = do_parse!(
             stream,
             take!(8)
-                >> mtime: be_u32
-                >> take!(14)
+                >> mtime_s: be_u32
+                >> mtime_ns: be_u32
+                >> take!(10)
                 >> mode: be_u16
                 >> take!(8)
                 >> size: be_u32
@@ -153,7 +155,8 @@ impl Index {
                 >> name: take!(name_size)
                 >> take!(8 - ((62 + name_size) % 8))
                 >> (
-                    mtime,
+                    mtime_s,
+                    mtime_ns,
                     mode,
                     size,
                     sha,
@@ -171,6 +174,8 @@ impl Index {
         let full_path = Path::new(&full_name);
         let parent_path = full_path.parent().unwrap().to_str().unwrap();
         let name = full_path.file_name().unwrap().to_str().unwrap().to_string();
+        // Git times are really a duration since unix Epoch
+        let mtime = Duration::new(mtime_s.into(), mtime_ns).as_nanos();
         let entry = DirEntry {
             stat: FileStat { mtime, size },
             sha: sha.try_into().unwrap(),
@@ -288,7 +293,7 @@ mod tests {
                     "some/file".to_string(),
                     DirEntry {
                         stat: FileStat {
-                            mtime: 20,
+                            mtime: (20 * 1_000_000_000) + 25,
                             size: 70,
                         },
                         sha: *sha,
